@@ -5,7 +5,7 @@ SEPARADOR_TOKEN = " "
 SEPARADOR_DECIMAL = "."
 NUMEROS_VALIDOS = [str(i) for i in range(0, 10)]
 OPERADORES_VALIDOS = ["+", "-", "*", "/", "%", "^"]
-COMANDOS_VALIDOS = ["MEM", "RES"]
+RES_KEYWORD = "RES"
 PARENTESES = ["(", ")"]
 
 
@@ -13,9 +13,10 @@ class TipoToken(Enum):
     NUMERO_INTEIRO = 1
     NUMERO_REAL = 2
     OPERADOR = 3
-    COMANDO = 4
-    PARENTESE_ESQ = 5
-    PARENTESE_DIR = 6
+    MEMORIA = 4
+    COMANDO = 5
+    PARENTESE_ESQ = 6
+    PARENTESE_DIR = 7
 
 
 class Token:
@@ -91,10 +92,10 @@ class AnalisadorLexico:
 
             elif atual in PARENTESES:
                 token = self.estadoParentese()
-            #
-            #            elif atual in COMANDOS_VALIDOS:
-            #                token = self.estadoComando()
-            #
+
+            # Comandos são compostos de letras maíusculas
+            elif atual.isalpha() and atual.isupper():
+                token = self.estadoComando()
 
             else:
                 raise Exception(f"Token inválido: {atual}")
@@ -146,6 +147,7 @@ class AnalisadorLexico:
         )
 
     def estadoOperador(self) -> Token:
+        coluna_inicio = self.coluna_atual
         # Incializa lexema com char que entrou nesse estado
         lexema: str = self.expressao[self.pos]
         self.avancar()
@@ -159,11 +161,12 @@ class AnalisadorLexico:
             tipo=TipoToken.OPERADOR,
             valor=lexema,
             linha=self.linha_atual,
-            coluna=self.coluna_atual,
+            coluna=coluna_inicio,
         )
 
     def estadoParentese(self) -> Token:
         # Incializa lexema com char que entrou nesse estado
+        coluna_inicio = self.coluna_atual
         lexema: str = self.expressao[self.pos]
         self.avancar()
 
@@ -181,16 +184,34 @@ class AnalisadorLexico:
             tipo=tipo,
             valor=lexema,
             linha=self.linha_atual,
-            coluna=self.coluna_atual,
+            coluna=coluna_inicio,
+        )
+
+    def estadoComando(self) -> Token:
+        coluna_inicio = self.coluna_atual
+        comando = self.peek_atual()
+        self.avancar()
+
+        while self.peek_atual().isalpha():
+            if not self.peek_atual().isupper():
+                raise Exception("Caractere minúsculo encontrado em comando")
+            comando += self.peek_atual()
+            self.avancar()
+
+        if comando == RES_KEYWORD:
+            tipo = TipoToken.COMANDO
+        else:
+            tipo = TipoToken.MEMORIA
+
+        return Token(
+            tipo=tipo,
+            valor=comando,
+            linha=self.linha_atual,
+            coluna=coluna_inicio,
         )
 
 
-#
-#    def estadoComando(self) -> Token:
-#        pass
-#
-
-analisador = AnalisadorLexico("///3+3+3+3.1-1.1010-1/1%1.1")
+analisador = AnalisadorLexico("1 3 - 5 9 * (1.5 X) RES 1.1 ()")
 
 
 for t in analisador.parseExpressao():
@@ -198,6 +219,5 @@ for t in analisador.parseExpressao():
 
 print("-----------")
 print("TODO:")
-print("Função estadoComando")
 print("Lidar com multiplas linhas (múltiplas expressões)")
 print("Exceptions mais específicas")
