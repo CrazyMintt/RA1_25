@@ -1,5 +1,6 @@
 from enum import Enum
 
+QUEBRA_LINHA = "\n"
 SEPARADOR_TOKEN = " "
 SEPARADOR_DECIMAL = "."
 NUMEROS_VALIDOS = [str(i) for i in range(0, 10)]
@@ -30,16 +31,18 @@ class Token:
         self.coluna = coluna
 
     def __str__(self):
-        return self.valor
+        return f"Tipo: {self.tipo}, Valor: {self.valor}"
 
 
 class AnalisadorLexico:
+    pos: int  # Posição geral da string que está sendo analisada
     linha_atual: int  # Linha do arquivo que está sendo analisada
     coluna_atual: int  # Posição (coluna) da linha que está sendo analisada
     expressao: str  # Conteúdo completo da linha que está sendo analisada
     parenteses: int  # Contador de balanceamento de parenteses
 
     def __init__(self, expressao: str):
+        self.pos = 0
         self.expressao = expressao
         self.linha_atual = 0
         self.coluna_atual = 0
@@ -51,8 +54,21 @@ class AnalisadorLexico:
         """
 
         tokens: list[Token] = []
-        while self.linha_atual < len(self.expressao):
-            atual = self.expressao[self.linha_atual]
+        while self.pos < len(self.expressao):
+            atual = self.expressao[self.pos]
+
+            # Ignora espaços em branco
+            if atual == SEPARADOR_TOKEN:
+                self.pos += 1
+                self.coluna_atual += 1
+                continue
+
+            # Condição para próxima linha (próxima expressão)
+            elif atual == QUEBRA_LINHA:
+                self.linha_atual += 1
+                self.coluna_atual = 0
+                self.pos += 1
+                continue
 
             if atual in NUMEROS_VALIDOS:
                 token = self.estadoNumero()
@@ -62,69 +78,115 @@ class AnalisadorLexico:
 
             elif atual in PARENTESES:
                 token = self.estadoParentese()
-
-            elif atual in COMANDOS_VALIDOS:
-                token = self.estadoComando()
+            #
+            #            elif atual in COMANDOS_VALIDOS:
+            #                token = self.estadoComando()
+            #
 
             else:
+                print(atual)
                 raise Exception
+
             tokens.append(token)
 
+        # Verifica se os parenteses estão balanceados
+        if self.parenteses != 0:
+            raise Exception("Parênteses desbalanceados.")
         return tokens
 
     def estadoNumero(self) -> Token:
-        lexema: str = ""
-        while self.expressao[self.coluna_atual] != SEPARADOR_TOKEN:
-            lexema += self.expressao[self.coluna_atual]
-            proximo = self.expressao[self.coluna_atual + 1]
-            # Lookahead se o próximo valor ainda é um número
-            if proximo in NUMEROS_VALIDOS:
-                self.coluna_atual += 1
-            # Lookahead se é um número decimal
-            elif proximo == SEPARADOR_DECIMAL:
-                return self.estadoDecimal()
-            # Qualquer outra coisa que segue um número é inválido.
-            else:
-                raise Exception("Token Inválido")
+        # Inicializa o lexema com o char que entrou nesse estado
+        lexema: str = self.expressao[self.pos]
+        self.pos += 1
         self.coluna_atual += 1
-        return Token(
-            tipo=TipoToken.NUMERO_INTEIRO,
-            valor=lexema,
-            linha=self.linha_atual,
-            coluna=self.coluna_atual,
-        )
 
-    def estadoDecimal(self) -> Token:
-        lexema: str = ""
-        # Ainda é o mesmo token até chegar em SEPARADOR_TOKEN
-        while self.expressao[self.coluna_atual] != SEPARADOR_TOKEN:
-            lexema += self.expressao[self.coluna_atual]
-            proximo = self.expressao[self.coluna_atual + 1]
-            # Lookahead se o próximo valor ainda é um número
-            if proximo in NUMEROS_VALIDOS:
-                self.coluna_atual += 1
-            # Qualquer outra coisa que segue um número é inválido.
+        # Por padrão o tipo é INTEIRO
+        tipo: TipoToken = TipoToken.NUMERO_INTEIRO
+
+        # Loop para identificar o token inteiro
+        while self.pos < len(self.expressao):
+            atual = self.expressao[self.pos]
+
+            # É um número válido
+            if atual in NUMEROS_VALIDOS:
+                lexema += atual
+
+            # É um número decimal
+            elif atual == SEPARADOR_DECIMAL:
+                # caso já tenha um separador decimal é inválido
+                if SEPARADOR_DECIMAL in lexema:
+                    raise Exception("Token Inválido: dois pontos decimais")
+
+                lexema += atual
+                tipo = TipoToken.NUMERO_REAL  # Muda o tipo do token
+
+            # Qualquer outra coisa significa que o token acabou
             else:
-                raise Exception("Token inválido.")
-        # Avança a posição para sair do SEPARADOR_TOKEN
-        self.coluna_atual += 1
+                break
+            self.coluna_atual += 1
+            self.pos += 1
         return Token(
-            tipo=TipoToken.NUMERO_REAL,
+            tipo=tipo,
             valor=lexema,
             linha=self.linha_atual,
             coluna=self.coluna_atual,
         )
 
     def estadoOperador(self) -> Token:
-        pass
+        lexema: str = self.expressao[self.pos]
+        self.pos += 1
+        self.coluna_atual += 1
+
+        # O único operador composto por 2 chars é //
+        if self.pos < len(self.expressao) and self.expressao[self.pos] == "/":
+            lexema += self.expressao[self.pos]
+            self.coluna_atual += 1
+            self.pos += 1
+
+        return Token(
+            tipo=TipoToken.OPERADOR,
+            valor=lexema,
+            linha=self.linha_atual,
+            coluna=self.coluna_atual,
+        )
 
     def estadoParentese(self) -> Token:
-        pass
+        lexema: str = self.expressao[self.pos]
+        self.pos += 1
+        self.coluna_atual += 1
 
-    def estadoComando(self) -> Token:
-        pass
+        if lexema == "(":
+            tipo = TipoToken.PARENTESE_ESQ
+            self.parenteses += 1
+        else:
+            tipo = TipoToken.PARENTESE_DIR
+            self.parenteses -= 1
+
+        return Token(
+            tipo=tipo,
+            valor=lexema,
+            linha=self.linha_atual,
+            coluna=self.coluna_atual,
+        )
 
 
-analisador = AnalisadorLexico("1 2 +")
+#
+#    def estadoComando(self) -> Token:
+#        pass
+#
 
-analisador.parseExpressao()
+analisador = AnalisadorLexico(
+    "1.31+21.1 + - + - //+ 1 () 12312 131 1.1 3. () () () (()) (((())))"
+)
+
+
+for t in analisador.parseExpressao():
+    print(t)
+
+print("-----------")
+print("TODO:")
+print("Função estadoComando")
+print("Função para ver se está no fim da expressão pra não ficar repitindo a condição")
+print("Função para avançar posição (self.pos e self.col)")
+print("Lidar com multiplas linhas (múltiplas expressões)")
+print("Exceptions mais específicas")
