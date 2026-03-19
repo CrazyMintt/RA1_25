@@ -48,26 +48,39 @@ class AnalisadorLexico:
         self.coluna_atual = 0
         self.parenteses = 0
 
+    def avancar(self):
+        """Avanca um char e atualiza as posições"""
+        if self.pos < len(self.expressao):
+            atual = self.expressao[self.pos]
+
+            # Se for outra linha, reseta coluna e incrementa linha
+            if atual == QUEBRA_LINHA:
+                self.coluna_atual = 0
+                self.linha_atual += 1
+            else:
+                self.coluna_atual += 1
+            self.pos += 1
+
+    def peek_atual(self) -> str:
+        """Olha se o caractere atual é o final sem atualizar posição"""
+        if self.pos < len(self.expressao):
+            return self.expressao[self.pos]
+        else:
+            return ""  # String vazia se for o fim
+
     def parseExpressao(self) -> list[Token]:
         """
         Loop principal do programa que faz o parse da expressão.
         """
 
         tokens: list[Token] = []
-        while self.pos < len(self.expressao):
+        while self.peek_atual():
             atual = self.expressao[self.pos]
 
-            # Ignora espaços em branco
-            if atual == SEPARADOR_TOKEN:
-                self.pos += 1
-                self.coluna_atual += 1
-                continue
-
-            # Condição para próxima linha (próxima expressão)
-            elif atual == QUEBRA_LINHA:
-                self.linha_atual += 1
-                self.coluna_atual = 0
-                self.pos += 1
+            # Ignora espaços em branco e quebra de linha
+            # Fazer tratamento de quebra de linha depois
+            if atual in [SEPARADOR_TOKEN, QUEBRA_LINHA]:
+                self.avancar()
                 continue
 
             if atual in NUMEROS_VALIDOS:
@@ -84,8 +97,7 @@ class AnalisadorLexico:
             #
 
             else:
-                print(atual)
-                raise Exception
+                raise Exception(f"Token inválido: {atual}")
 
             tokens.append(token)
 
@@ -95,53 +107,53 @@ class AnalisadorLexico:
         return tokens
 
     def estadoNumero(self) -> Token:
+        # No token deve ficar a posicao do inicio do token
+        coluna_inicio = self.coluna_atual
+
         # Inicializa o lexema com o char que entrou nesse estado
         lexema: str = self.expressao[self.pos]
-        self.pos += 1
-        self.coluna_atual += 1
+        self.avancar()
 
         # Por padrão o tipo é INTEIRO
         tipo: TipoToken = TipoToken.NUMERO_INTEIRO
 
         # Loop para identificar o token inteiro
-        while self.pos < len(self.expressao):
-            atual = self.expressao[self.pos]
+        while (
+            self.peek_atual() in NUMEROS_VALIDOS
+            or self.peek_atual() == SEPARADOR_DECIMAL
+        ):
 
-            # É um número válido
-            if atual in NUMEROS_VALIDOS:
-                lexema += atual
+            atual = self.peek_atual()
 
-            # É um número decimal
-            elif atual == SEPARADOR_DECIMAL:
+            # Validação de decimal
+            if atual == SEPARADOR_DECIMAL:
                 # caso já tenha um separador decimal é inválido
                 if SEPARADOR_DECIMAL in lexema:
                     raise Exception("Token Inválido: dois pontos decimais")
-
-                lexema += atual
                 tipo = TipoToken.NUMERO_REAL  # Muda o tipo do token
 
-            # Qualquer outra coisa significa que o token acabou
-            else:
-                break
-            self.coluna_atual += 1
-            self.pos += 1
+            # Atualiza o lexema e avança
+            lexema += atual
+            self.avancar()
+
+        # Retorna ao chegar no fim da expressão
+        # ou encontrar um char que não é relacionado à número
         return Token(
             tipo=tipo,
             valor=lexema,
             linha=self.linha_atual,
-            coluna=self.coluna_atual,
+            coluna=coluna_inicio,
         )
 
     def estadoOperador(self) -> Token:
+        # Incializa lexema com char que entrou nesse estado
         lexema: str = self.expressao[self.pos]
-        self.pos += 1
-        self.coluna_atual += 1
+        self.avancar()
 
         # O único operador composto por 2 chars é //
-        if self.pos < len(self.expressao) and self.expressao[self.pos] == "/":
+        if self.peek_atual() == "/":
             lexema += self.expressao[self.pos]
-            self.coluna_atual += 1
-            self.pos += 1
+            self.avancar()
 
         return Token(
             tipo=TipoToken.OPERADOR,
@@ -151,16 +163,19 @@ class AnalisadorLexico:
         )
 
     def estadoParentese(self) -> Token:
+        # Incializa lexema com char que entrou nesse estado
         lexema: str = self.expressao[self.pos]
-        self.pos += 1
-        self.coluna_atual += 1
+        self.avancar()
 
         if lexema == "(":
             tipo = TipoToken.PARENTESE_ESQ
             self.parenteses += 1
-        else:
+        elif lexema == ")":
             tipo = TipoToken.PARENTESE_DIR
             self.parenteses -= 1
+        else:
+            # Nunca deveria chegar aqui
+            raise Exception("Entrada no Estado de Parentese com token inválido")
 
         return Token(
             tipo=tipo,
@@ -175,9 +190,7 @@ class AnalisadorLexico:
 #        pass
 #
 
-analisador = AnalisadorLexico(
-    "1.31+21.1 + - + - //+ 1 () 12312 131 1.1 3. () () () (()) (((())))"
-)
+analisador = AnalisadorLexico("///3+3+3+3.1-1.1010-1/1%1.1")
 
 
 for t in analisador.parseExpressao():
@@ -186,7 +199,5 @@ for t in analisador.parseExpressao():
 print("-----------")
 print("TODO:")
 print("Função estadoComando")
-print("Função para ver se está no fim da expressão pra não ficar repitindo a condição")
-print("Função para avançar posição (self.pos e self.col)")
 print("Lidar com multiplas linhas (múltiplas expressões)")
 print("Exceptions mais específicas")
