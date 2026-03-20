@@ -98,7 +98,7 @@ class AnalisadorLexico:
                 token = self.estadoComando()
 
             else:
-                raise Exception(f"Token inválido: {atual}")
+                raise Exception("Token inválido")
 
             tokens.append(token)
 
@@ -115,32 +115,55 @@ class AnalisadorLexico:
         lexema: str = self.expressao[self.pos]
         self.avancar()
 
-        # Por padrão o tipo é INTEIRO
-        tipo: TipoToken = TipoToken.NUMERO_INTEIRO
+        # Loop para identificar o token inteiro
+        while self.peek_atual() in NUMEROS_VALIDOS:
+            # Atualiza o lexema e avança
+            lexema += self.peek_atual()
+            self.avancar()
+
+        if self.peek_atual() == SEPARADOR_DECIMAL:
+            return self.estadoDecimal(lexema, coluna_inicio)
+
+        # Retorna ao chegar no fim da expressão
+        # ou encontrar um char que não é relacionado à número
+        return Token(
+            tipo=TipoToken.NUMERO_INTEIRO,
+            valor=lexema,
+            linha=self.linha_atual,
+            coluna=coluna_inicio,
+        )
+
+    def estadoDecimal(self, parte_inteira: str, coluna_inicio) -> Token:
+        """Estado para números com casas decimais.
+        A parte inteira do número (antes do '.') deve ser
+        passada como parâmetro, assim a coluna incial do número."""
+
+        # Inicializa o lexema com a parte inteira + a posição atual (deve ser SEPARADOR_DECIMAL)
+        lexema: str = parte_inteira + self.peek_atual()
+        self.avancar()
 
         # Loop para identificar o token inteiro
-        while (
-            self.peek_atual() in NUMEROS_VALIDOS
-            or self.peek_atual() == SEPARADOR_DECIMAL
-        ):
+        while self.peek_atual() in NUMEROS_VALIDOS:
 
             atual = self.peek_atual()
-
-            # Validação de decimal
-            if atual == SEPARADOR_DECIMAL:
-                # caso já tenha um separador decimal é inválido
-                if SEPARADOR_DECIMAL in lexema:
-                    raise Exception("Token Inválido: dois pontos decimais")
-                tipo = TipoToken.NUMERO_REAL  # Muda o tipo do token
 
             # Atualiza o lexema e avança
             lexema += atual
             self.avancar()
 
+        # Adiciona um 0 se o ultimo char do lexema for .
+        # if lexema[-1] == SEPARADOR_DECIMAL:
+        #    lexema += "0"
+
+        if self.peek_atual() == SEPARADOR_DECIMAL:
+            raise Exception(
+                "Token inválido: dois separadores de número decimal (.) encontrados."
+            )
+
         # Retorna ao chegar no fim da expressão
         # ou encontrar um char que não é relacionado à número
         return Token(
-            tipo=tipo,
+            tipo=TipoToken.NUMERO_REAL,
             valor=lexema,
             linha=self.linha_atual,
             coluna=coluna_inicio,
@@ -211,7 +234,7 @@ class AnalisadorLexico:
         )
 
 
-analisador = AnalisadorLexico("1 3 - 5 9 * (1.5 X) RES 1.1 ()")
+analisador = AnalisadorLexico("1. 3 - 5 9 * (1.5 X) RES 1.1 ()")
 
 
 for t in analisador.parseExpressao():
