@@ -14,7 +14,7 @@ class TipoToken(Enum):
     NUMERO_REAL = 2
     OPERADOR = 3
     MEMORIA = 4
-    COMANDO = 5
+    KEYWORD = 5
     PARENTESE_ESQ = 6
     PARENTESE_DIR = 7
 
@@ -85,17 +85,23 @@ class AnalisadorLexico:
                 continue
 
             if atual in NUMEROS_VALIDOS:
-                token = self.estadoNumero()
+                token = self.estadoNumero(self.coluna_atual)
 
             elif atual in OPERADORES_VALIDOS:
-                token = self.estadoOperador()
+                token = self.estadoOperador(self.coluna_atual)
 
             elif atual in PARENTESES:
-                token = self.estadoParentese()
+                token = self.estadoParentese(self.coluna_atual)
 
-            # Comandos são compostos de letras maíusculas
+            # Keyword RES
+            elif atual == "R":
+                token = self.estadoComandoRes(self.coluna_atual)
+
+            # Identificadores de Memória são compostos de letras maíusculas
             elif atual.isalpha() and atual.isupper():
-                token = self.estadoComando()
+                token = self.estadoComandoMemoria(
+                    col_inicio=self.coluna_atual, lexema=None
+                )
 
             else:
                 raise Exception("Token inválido")
@@ -107,12 +113,9 @@ class AnalisadorLexico:
             raise Exception("Parênteses desbalanceados.")
         return tokens
 
-    def estadoNumero(self) -> Token:
-        # No token deve ficar a posicao do inicio do token
-        coluna_inicio = self.coluna_atual
-
+    def estadoNumero(self, col_inicio: int) -> Token:
         # Inicializa o lexema com o char que entrou nesse estado
-        lexema: str = self.expressao[self.pos]
+        lexema: str = self.peek_atual()
         self.avancar()
 
         # Loop para identificar o token inteiro
@@ -122,7 +125,7 @@ class AnalisadorLexico:
             self.avancar()
 
         if self.peek_atual() == SEPARADOR_DECIMAL:
-            return self.estadoDecimal(lexema, coluna_inicio)
+            return self.estadoDecimal(lexema, col_inicio)
 
         # Retorna ao chegar no fim da expressão
         # ou encontrar um char que não é relacionado à número
@@ -130,10 +133,10 @@ class AnalisadorLexico:
             tipo=TipoToken.NUMERO_INTEIRO,
             valor=lexema,
             linha=self.linha_atual,
-            coluna=coluna_inicio,
+            coluna=col_inicio,
         )
 
-    def estadoDecimal(self, parte_inteira: str, coluna_inicio) -> Token:
+    def estadoDecimal(self, parte_inteira: str, col_inicio: int) -> Token:
         """Estado para números com casas decimais.
         A parte inteira do número (antes do '.') deve ser
         passada como parâmetro, assim a coluna incial do número."""
@@ -166,11 +169,10 @@ class AnalisadorLexico:
             tipo=TipoToken.NUMERO_REAL,
             valor=lexema,
             linha=self.linha_atual,
-            coluna=coluna_inicio,
+            coluna=col_inicio,
         )
 
-    def estadoOperador(self) -> Token:
-        coluna_inicio = self.coluna_atual
+    def estadoOperador(self, col_inicio: int) -> Token:
         # Incializa lexema com char que entrou nesse estado
         lexema: str = self.expressao[self.pos]
         self.avancar()
@@ -184,12 +186,11 @@ class AnalisadorLexico:
             tipo=TipoToken.OPERADOR,
             valor=lexema,
             linha=self.linha_atual,
-            coluna=coluna_inicio,
+            coluna=col_inicio,
         )
 
-    def estadoParentese(self) -> Token:
+    def estadoParentese(self, col_inicio: int) -> Token:
         # Incializa lexema com char que entrou nesse estado
-        coluna_inicio = self.coluna_atual
         lexema: str = self.expressao[self.pos]
         self.avancar()
 
@@ -207,34 +208,67 @@ class AnalisadorLexico:
             tipo=tipo,
             valor=lexema,
             linha=self.linha_atual,
-            coluna=coluna_inicio,
+            coluna=col_inicio,
         )
 
-    def estadoComando(self) -> Token:
-        coluna_inicio = self.coluna_atual
-        comando = self.peek_atual()
+    def estadoComandoRes(self, col_inicio: int) -> Token:
+        lexema = self.peek_atual()
         self.avancar()
+
+        # R -> E
+        if self.peek_atual() == "E":
+            lexema += self.peek_atual()
+            self.avancar()
+            # R -> E -> S
+            if self.peek_atual() == "S":
+                lexema += self.peek_atual()
+                self.avancar()
+                # R -> E -> S -> FIM
+                if not self.peek_atual().isalpha():
+                    return Token(
+                        tipo=TipoToken.KEYWORD,
+                        valor=lexema,
+                        linha=self.linha_atual,
+                        coluna=col_inicio,
+                    )
+
+        # R -> FIM = Identificador de Memória
+        # R -> ... -> LETRA_MAIUSCULA = Identificador de Memória
+        if not self.peek_atual() or (
+            self.peek_atual().isalpha() and self.peek_atual().isupper()
+        ):
+            return self.estadoComandoMemoria(col_inicio, lexema)
+
+        return Token(
+            tipo=TipoToken.KEYWORD,
+            valor=lexema,
+            linha=self.linha_atual,
+            coluna=col_inicio,
+        )
+
+    def estadoComandoMemoria(self, col_inicio: int, lexema: str | None) -> Token:
+        # Se lexema não foi inicializado ainda, inicializa com o atual
+        if not lexema:
+            lexema = self.peek_atual()
+            self.avancar()
 
         while self.peek_atual().isalpha():
             if not self.peek_atual().isupper():
-                raise Exception("Caractere minúsculo encontrado em comando")
-            comando += self.peek_atual()
+                raise Exception(
+                    "Caractere minúsculo encontrado no Identificador de Memória"
+                )
+            lexema += self.peek_atual()
             self.avancar()
 
-        if comando == RES_KEYWORD:
-            tipo = TipoToken.COMANDO
-        else:
-            tipo = TipoToken.MEMORIA
-
         return Token(
-            tipo=tipo,
-            valor=comando,
+            tipo=TipoToken.MEMORIA,
+            valor=lexema,
             linha=self.linha_atual,
-            coluna=coluna_inicio,
+            coluna=col_inicio,
         )
 
 
-analisador = AnalisadorLexico("1. 3 - 5 9 * (1.5 X) RES 1.1 ()")
+analisador = AnalisadorLexico("1. 3 - 5 9 * (1.5 X) RES 1.1 () RESRES")
 
 
 for t in analisador.parseExpressao():
