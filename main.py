@@ -1,23 +1,7 @@
-"""
-Aluno 4 - Interface do Usuário, exibirResultados e testes
-
-Responsabilidades:
-- Implementar exibirResultados
-- Implementar main
-- Chamar funções dos outros módulos:
-    lerArquivo
-    parseExpressao
-    gerarAssembly
-    executarExpressao
-"""
 
 import sys
-
-import executarExpressao
-import lerArquivo
-import gerarAssembly
-import exibirResultados
-from parseExpressao import AnalisadorLexico, Token, TipoToken
+from parseExpressao import AnalisadorLexico
+from lerArquivo import lerArquivo
 
 
 
@@ -25,14 +9,10 @@ def main():
 
     if len(sys.argv) < 2:
         print("Uso correto:")
-        print("python main.py arquivo.txt [--no-output]")
+        print("python main.py arquivo.txt")
         sys.exit(1)
 
     nomeArquivo = sys.argv[1]
-
-    mostrar_saida = True
-    if "--no-output" in sys.argv:
-        mostrar_saida = False
 
     if not nomeArquivo.lower().endswith(".txt"):
         print("Erro: o arquivo de entrada deve ser do tipo .txt")
@@ -47,26 +27,17 @@ def main():
         print("Erro ao ler arquivo:", erro)
         sys.exit(1)
 
-    resultados = []
-
     for i, linha in enumerate(linhas, start=1):
         try:
             analisador = AnalisadorLexico(linha)
             tokens = analisador.parseExpressao()
 
-            assembly = gerarAssembly(tokens)
-            resultado = executarExpressao(assembly)
-
-            resultados.append(resultado)
+            for token in tokens:
+                print(token)
 
         except Exception as erro:
             print(f"Erro na linha {i}: {linha}")
             print("Detalhe:", erro)
-            resultados.append(float('nan'))
-
-    if mostrar_saida:
-        exibirResultados(resultados)
-
 
 if __name__ == "__main__":
     main()
