@@ -12,7 +12,8 @@ Responsabilidades:
 """
 
 import sys
-
+import parseExpressao
+from parseExpressao import AnalisadorLexico, Token, TipoToken
 
 def lerArquivo(nomeArquivo):
     #simulação simples do leitor de arquivos do Aluno 3.
@@ -20,27 +21,30 @@ def lerArquivo(nomeArquivo):
         return [linha.strip() for linha in f if linha.strip()]
 
 
-def parseExpressao(linha):
-    #simulação simples do parser do Aluno 1.
-    linha = linha.replace("(", "").replace(")", "")
-    return linha.split()
+
 
 
 def gerarAssembly(tokens):
-    #simulação simples do gerador de assembly do Aluno 2.
     assembly = []
 
     for token in tokens:
-        if token.replace('.', '', 1).isdigit():
-            assembly.append(f"PUSH {token}")
-        elif token == "+":
-            assembly.append("ADD")
-        elif token == "-":
-            assembly.append("SUB")
-        elif token == "*":
-            assembly.append("MUL")
-        elif token == "/":
-            assembly.append("DIV")
+
+        if token.tipo in (TipoToken.NUMERO_INTEIRO, TipoToken.NUMERO_REAL):
+            assembly.append(f"PUSH {token.valor}")
+
+        elif token.tipo == TipoToken.OPERADOR:
+            if token.valor == "+":
+                assembly.append("ADD")
+            elif token.valor == "-":
+                assembly.append("SUB")
+            elif token.valor == "*":
+                assembly.append("MUL")
+            elif token.valor == "/":
+                assembly.append("DIV")
+
+        # opcional (depende do trabalho)
+        elif token.tipo == TipoToken.KEYWORD and token.valor == "RES":
+            assembly.append("OUT")
 
     assembly.append("OUT")
     return assembly
@@ -126,7 +130,6 @@ def main():
     nomeArquivo = sys.argv[1]
 
     mostrar_saida = True
-    #flagzinha para controlar a exibição dos resultados
     if "--no-output" in sys.argv:
         mostrar_saida = False
 
@@ -145,14 +148,18 @@ def main():
 
     resultados = []
 
-    for linha in linhas:
+    for i, linha in enumerate(linhas, start=1):
         try:
-            tokens = parseExpressao(linha)
+            analisador = AnalisadorLexico(linha)
+            tokens = analisador.parseExpressao()
+
             assembly = gerarAssembly(tokens)
             resultado = executarExpressao(assembly)
+
             resultados.append(resultado)
+
         except Exception as erro:
-            print("Erro ao processar linha:", linha)
+            print(f"Erro na linha {i}: {linha}")
             print("Detalhe:", erro)
             resultados.append(float('nan'))
 
