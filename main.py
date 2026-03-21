@@ -12,112 +12,13 @@ Responsabilidades:
 """
 
 import sys
-import parseExpressao
+
+import executarExpressao
+import lerArquivo
+import gerarAssembly
+import exibirResultados
 from parseExpressao import AnalisadorLexico, Token, TipoToken
 
-def lerArquivo(nomeArquivo):
-    #simulação simples do leitor de arquivos do Aluno 3.
-    with open(nomeArquivo, encoding="utf-8") as f:
-        return [linha.strip() for linha in f if linha.strip()]
-
-
-
-
-
-def gerarAssembly(tokens):
-    assembly = []
-
-    for token in tokens:
-
-        if token.tipo in (TipoToken.NUMERO_INTEIRO, TipoToken.NUMERO_REAL):
-            assembly.append(f"PUSH {token.valor}")
-
-        elif token.tipo == TipoToken.OPERADOR:
-            if token.valor == "+":
-                assembly.append("ADD")
-            elif token.valor == "-":
-                assembly.append("SUB")
-            elif token.valor == "*":
-                assembly.append("MUL")
-            elif token.valor == "/":
-                assembly.append("DIV")
-
-        # opcional (depende do trabalho)
-        elif token.tipo == TipoToken.KEYWORD and token.valor == "RES":
-            assembly.append("OUT")
-
-    assembly.append("OUT")
-    return assembly
-
-
-def executarExpressao(assembly):
-    """
-    Simula a execução do assembly gerado.
-    Usa uma pilha para interpretar as instruções.
-    """
-    stack = []
-    resultado_saida = float('nan')
-
-    for instrucao in assembly:
-        partes = instrucao.split()
-
-        if partes[0] == "PUSH":
-            stack.append(float(partes[1]))
-
-        elif partes[0] == "ADD":
-            b = stack.pop()
-            a = stack.pop()
-            stack.append(a + b)
-
-        elif partes[0] == "SUB":
-            b = stack.pop()
-            a = stack.pop()
-            stack.append(a - b)
-
-        elif partes[0] == "MUL":
-            b = stack.pop()
-            a = stack.pop()
-            stack.append(a * b)
-
-        elif partes[0] == "DIV":
-            b = stack.pop()
-            a = stack.pop()
-            stack.append(a / b)
-
-        elif partes[0] == "OUT":
-            if stack:
-                resultado_saida = stack[-1]
-
-    return resultado_saida
-
-
-def exibirResultados(resultados):
-    #exibe os resultados das expressões processadas, formatando para 1 casa decimal.
-    print("\nResultados das expressões:\n")
-
-    for i, resultado in enumerate(resultados, start=1):
-        try:
-            print(f"Linha {i}: {resultado:.1f}")
-        except:
-            print(f"Linha {i}: {resultado}")
-
-
-def ProgramTests():
-    #testes para validar o programa
-    print("\nExecutando testes do programa...\n")
-
-    arquivo = "teste1.txt"
-    linhas = lerArquivo(arquivo)
-
-    resultados = []
-
-    for linha in linhas:
-        tokens = parseExpressao(linha)
-        assembly = gerarAssembly(tokens)
-        resultado = executarExpressao(assembly)
-        resultados.append(resultado)
-
-    exibirResultados(resultados)
 
 
 def main():
