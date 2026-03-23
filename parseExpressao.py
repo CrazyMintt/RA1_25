@@ -9,6 +9,25 @@ RES_KEYWORD = "RES"
 PARENTESES = ["(", ")"]
 
 
+class ErroLexico(Exception):
+    """Classe base para erros do analisador léxico."""
+
+    def __init__(self, mensagem: str, linha: int, coluna: int):
+        super().__init__(f"Erro na linha {linha}, coluna {coluna}: {mensagem}")
+        self.linha = linha
+        self.coluna = coluna
+
+
+class ErroParentesesDesbalanceados(ErroLexico):
+    def __init__(self, linha: int, coluna: int):
+        super().__init__("Parênteses desbalanceados.", linha, coluna)
+
+
+class ErroTokenInvalido(ErroLexico):
+    def __init__(self, char: str, linha: int, coluna: int):
+        super().__init__(f"Caractere ou token inválido '{char}'.", linha, coluna)
+
+
 class TipoToken(Enum):
     NUMERO_INTEIRO = 1
     NUMERO_REAL = 2
@@ -32,7 +51,7 @@ class Token:
         self.coluna = coluna
 
     def __str__(self):
-        return f"Tipo: {self.tipo}, Valor: {self.valor}"
+        return f"Tipo: {self.tipo}, Valor: {self.valor}, Linha: {self.linha}, Coluna: {self.coluna}"
 
 
 class AnalisadorLexico:
@@ -41,13 +60,15 @@ class AnalisadorLexico:
     coluna_atual: int  # Posição (coluna) da linha que está sendo analisada
     expressao: str  # Conteúdo completo da linha que está sendo analisada
     parenteses: int  # Contador de balanceamento de parenteses
+    # Matriz para armazenar todos os tokens de todas as expressoes (linhas)
+    matriz_tokens: list[list[Token]]
 
-    def __init__(self, expressao: str):
+    def __init__(self):
         self.pos = 0
-        self.expressao = expressao
         self.linha_atual = 0
         self.coluna_atual = 0
         self.parenteses = 0
+        self.matriz_tokens = []
 
     def avancar(self):
         """Avanca um char e atualiza as posições"""
@@ -69,18 +90,24 @@ class AnalisadorLexico:
         else:
             return ""  # String vazia se for o fim
 
-    def parseExpressao(self) -> list[Token]:
+    def parseExpressao(self, expressao: str, numero_linha: int):
         """
         Loop principal do programa que faz o parse da expressão.
         """
 
-        tokens: list[Token] = []
+        # Prepara o estado para a nova linha
+        self.expressao = expressao
+        self.pos = 0
+        self.coluna_atual = 0
+        self.linha_atual = numero_linha
+        self.parenteses = 0
+        tokens_linha_atual: list[Token] = []
+
         while self.peek_atual():
             atual = self.expressao[self.pos]
 
-            # Ignora espaços em branco e quebra de linha
-            # Fazer tratamento de quebra de linha depois
-            if atual in [SEPARADOR_TOKEN, QUEBRA_LINHA]:
+            # Ignora espaços em branco
+            if atual == SEPARADOR_TOKEN:
                 self.avancar()
                 continue
 
@@ -102,16 +129,17 @@ class AnalisadorLexico:
                 token = self.estadoComandoMemoria(
                     col_inicio=self.coluna_atual, lexema=None
                 )
-
             else:
-                raise Exception("Token inválido")
+                raise ErroTokenInvalido(atual, self.linha_atual, self.coluna_atual)
 
-            tokens.append(token)
+            tokens_linha_atual.append(token)
 
         # Verifica se os parenteses estão balanceados
         if self.parenteses != 0:
-            raise Exception("Parênteses desbalanceados.")
-        return tokens
+            raise ErroParentesesDesbalanceados(self.linha_atual, self.coluna_atual)
+
+        if tokens_linha_atual:
+            self.matriz_tokens.append(tokens_linha_atual)
 
     def estadoNumero(self, col_inicio: int) -> Token:
         # Inicializa o lexema com o char que entrou nesse estado
@@ -154,13 +182,17 @@ class AnalisadorLexico:
             lexema += atual
             self.avancar()
 
-        # Adiciona um 0 se o ultimo char do lexema for .
-        # if lexema[-1] == SEPARADOR_DECIMAL:
-        #    lexema += "0"
+        # Exception se o ultimo char do lexema for '.'
+        if lexema[-1] == SEPARADOR_DECIMAL:
+            raise ErroTokenInvalido(
+                "Numero decimal mal formatado", self.linha_atual, self.coluna_atual
+            )
 
         if self.peek_atual() == SEPARADOR_DECIMAL:
-            raise Exception(
-                "Token inválido: dois separadores de número decimal (.) encontrados."
+            raise ErroTokenInvalido(
+                "Token inválido: dois separadores de número decimal (.) encontrados.",
+                self.linha_atual,
+                self.coluna_atual,
             )
 
         # Retorna ao chegar no fim da expressão
@@ -197,12 +229,9 @@ class AnalisadorLexico:
         if lexema == "(":
             tipo = TipoToken.PARENTESE_ESQ
             self.parenteses += 1
-        elif lexema == ")":
+        else:
             tipo = TipoToken.PARENTESE_DIR
             self.parenteses -= 1
-        else:
-            # Nunca deveria chegar aqui
-            raise Exception("Entrada no Estado de Parentese com token inválido")
 
         return Token(
             tipo=tipo,
@@ -254,8 +283,10 @@ class AnalisadorLexico:
 
         while self.peek_atual().isalpha():
             if not self.peek_atual().isupper():
-                raise Exception(
-                    "Caractere minúsculo encontrado no Identificador de Memória"
+                raise ErroTokenInvalido(
+                    "Caractere minúsculo encontrado no Identificador de Memória",
+                    self.linha_atual,
+                    self.coluna_atual,
                 )
             lexema += self.peek_atual()
             self.avancar()
@@ -268,13 +299,11 @@ class AnalisadorLexico:
         )
 
 
-analisador = AnalisadorLexico("1. 3 - 5 9 * (1.5 X) RES 1.1 () RESRES")
+if __name__ == "__main__":
+    analisador = AnalisadorLexico()
 
-
-for t in analisador.parseExpressao():
-    print(t)
-
-print("-----------")
-print("TODO:")
-print("Lidar com multiplas linhas (múltiplas expressões)")
-print("Exceptions mais específicas")
+    analisador.parseExpressao("1.0 3 - 5 9 * (1.5 X) RES 1.1 () RESRES", 1)
+    analisador.parseExpressao("1.0 3 - 5 9 * (1.5 X) RES 1.1 () RESRES", 2)
+    for i in analisador.matriz_tokens:
+        for j in i:
+            print(j)
