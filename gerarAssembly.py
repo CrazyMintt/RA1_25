@@ -1,5 +1,7 @@
 from parseExpressao import Token, TipoToken
-OPERACOES_DIVISIVAS = ["/","//", "%"]
+
+OPERACOES_DIVISIVAS = ["/", "//", "%"]
+
 class geradorAssembly():
     def __init__(self):
         self.memoria = {}
@@ -10,7 +12,6 @@ class geradorAssembly():
         self.data_counter = 0
         self.tmp_counter = 0
         self.regs_livres_int = [f"R{i}" for i in reversed(range(0, 10))]
-
         self.regs_livres_float = [f"D{i}" for i in reversed(range(1, 32))]
 
     def alocar_reg(self, eh_float: bool) -> str:
@@ -55,11 +56,17 @@ class geradorAssembly():
 
     def get_assembly_keyword(self, operacao: Token, eh_float: bool) -> str:
         if eh_float:
-            mapa = {"+": "VADD.F64", "-": "VSUB.F64",
-                    "*": "VMUL.F64", "/": "VDIV.F64", "//":"VDIV.F64", "%":"VDIV.F64"}
+            mapa = {
+                "+":  "VADD.F64",
+                "-":  "VSUB.F64",
+                "*":  "VMUL.F64",
+                "/":  "VDIV.F64",
+                "//": "VDIV.F64",
+                "%":  "VDIV.F64",
+                "^":  "VMUL.F64",   # usado só como fallback; o loop trata tudo
+            }
         else:
-            mapa = {"+": "ADD", "-": "SUB",
-                    "*": "MUL"}
+            mapa = {"+": "ADD", "-": "SUB", "*": "MUL","^":"MUL"}
 
         kw = mapa.get(operacao.valor)
         if kw is None:
@@ -73,7 +80,6 @@ class geradorAssembly():
         return label
 
     def _is_float(self, token: Token) -> bool:
-        """Diz se um token representa um valor float."""
         if token.tipo == TipoToken.NUMERO_REAL:
             return True
         if token.tipo == TipoToken.MEMORIA:
@@ -82,10 +88,6 @@ class geradorAssembly():
         return False
 
     def _define_token_headers(self, token: Token, eh_float: bool):
-        """
-        Gera o header de carregamento e retorna (header, reg_alocado).
-        Para MEMORIA, apenas lê o registrador já existente — sem alocar novo.
-        """
         header = ""
         reg_usado = None
         if eh_float:
@@ -98,7 +100,6 @@ class geradorAssembly():
         elif token.tipo == TipoToken.NUMERO_INTEIRO:
             reg_usado = self.alocar_reg(eh_float=False)
             header += f"MOV {reg_usado}, #{token.valor}\n"
-
         elif token.tipo == TipoToken.MEMORIA:
             reg_usado = self.memoria.get(token.valor)
             if reg_usado is None:
@@ -107,68 +108,95 @@ class geradorAssembly():
                 header += f"LDR R12, ={label}\n"
                 header += f"VLDR {reg_usado}, [R12]\n"
         return header, reg_usado
-    def _op_creates_floats(self,operacao)->bool:
-        op_value = operacao.valor
-        return op_value in OPERACOES_DIVISIVAS
-                
+
+    def _op_creates_floats(self, operacao) -> bool:
+        return operacao.valor in OPERACOES_DIVISIVAS
+
     def create_op_headers(self, a: Token, b: Token, operacao: Token):
         eh_float = self._is_float(a) or self._is_float(b) or self._op_creates_floats(operacao)
-
         header_a, reg_a = self._define_token_headers(a, eh_float)
         header_b, reg_b = self._define_token_headers(b, eh_float)
-
         return header_a + header_b, reg_a, reg_b, eh_float
-    def convert_64b_to_int(self,reg):
+
+    def convert_64b_to_int(self, reg):
         linhas = []
         linhas.append(f"vcvt.s32.f64 s0, {reg}")
         self.liberar_reg(reg)
         reg_saida = self.alocar_reg(eh_float=False)
         linhas.append(f"vmov {reg_saida}, s0")
-        return linhas,reg_saida
+        return linhas, reg_saida
+    def _criar_pow_loop(self,kw,reg_a,reg_b,reg_resultado,eh_float):
+        before_op = []
+        if eh_float:
+            label_um = self._criar_label_float("1.00")
+            before_op.append(f"LDR R12, ={label_um}")
+            before_op.append(f"VLDR {reg_resultado}, [R12]")
+        else:
+            before_op.append(f"MOV {reg_resultado}, #1")
+        # Loop de multiplicação (label único por operação)
+        loop_id  = self.tmp_counter
+        lbl_loop = f"pow_loop_{loop_id}"
+        lbl_end  = f"pow_end_{loop_id}"
+        before_op.append(f"{lbl_loop}:")
+        before_op.append(f"CMP {reg_b}, #0")
+        before_op.append(f"BEQ {lbl_end}")
+        before_op.append(f"{kw} {reg_resultado}, {reg_resultado}, {reg_a}")
+        before_op.append(f"SUB {reg_b}, {reg_b}, #1")
+        before_op.append(f"B {lbl_loop}")
+        before_op.append(f"{lbl_end}:")
+        return before_op
     def criar_op_line_assembly(self, a: Token, b: Token, operacao: Token) -> Token:
         header, reg_a, reg_b, eh_float = self.create_op_headers(a, b, operacao)
         kw = self.get_assembly_keyword(operacao, eh_float)
 
-        # aloca registrador exclusivo para o resultado antes de liberar os fontes
         reg_resultado = self.alocar_reg(eh_float=eh_float)
-        linha = f"{kw} {reg_resultado}, {reg_a}, {reg_b}"
-        footer = []
+
+        # ── before_op: lógica pré-operação ──────────────────────────────────
+        before_op = []
+        if operacao.valor == "^":
+            before_op.extend(self._criar_pow_loop(kw,reg_a,reg_b,reg_resultado,eh_float))
+            linha = ""
+        else:
+            # ── linha principal (vazia para ^, pois o loop já fez tudo) ─────────
+            linha = f"{kw} {reg_resultado}, {reg_a}, {reg_b}"
+
+        # ── after_op: conversões pós-operação ───────────────────────────────
+        after_op = []
         if operacao.valor == "//" or operacao.valor == "%":
-            linhas_assembly,reg_resultado = self.convert_64b_to_int(reg_resultado)
-            footer.extend(linhas_assembly)
+            linhas_assembly, reg_resultado = self.convert_64b_to_int(reg_resultado)
+            after_op.extend(linhas_assembly)
+
         if operacao.valor == "%":
-            linhas_assembly_a,reg_a = self.convert_64b_to_int(reg_a)
-            footer.extend(linhas_assembly_a)
-            linhas_assembly_b,reg_b = self.convert_64b_to_int(reg_b)
-            footer.extend(linhas_assembly_b)
+            linhas_assembly_a, reg_a = self.convert_64b_to_int(reg_a)
+            after_op.extend(linhas_assembly_a)
+            linhas_assembly_b, reg_b = self.convert_64b_to_int(reg_b)
+            after_op.extend(linhas_assembly_b)
             reg_saida = self.alocar_reg(eh_float=False)
-            footer.append(f"MUL {reg_saida}, {reg_resultado}, {reg_b}")
-            footer.append(f"SUB {reg_saida}, {reg_a}, {reg_saida}")
+            after_op.append(f"MUL {reg_saida}, {reg_resultado}, {reg_b}")
+            after_op.append(f"SUB {reg_saida}, {reg_a}, {reg_saida}")
             self.liberar_reg(reg_resultado)
             reg_resultado = reg_saida
 
-        # libera os registradores de entrada — literais e temporários
+        # ── libera registradores de entrada ─────────────────────────────────
         self.liberar_reg(reg_a)
         self.liberar_reg(reg_b)
 
-        # remove entradas temporárias do dicionário
-        # if a.tipo == TipoToken.MEMORIA:
-        #     self.memoria.pop(a.valor, None)
-        # if b.tipo == TipoToken.MEMORIA:
-        #     self.memoria.pop(b.valor, None)
-
-        # registra o resultado com chave única
+        # ── registra resultado como token temporário ─────────────────────────
         tmp_key = f"tmp_{self.tmp_counter}"
         self.tmp_counter += 1
         self.memoria[tmp_key] = reg_resultado
 
         self.codigo_assembly.append(header)
+        self.codigo_assembly.extend(before_op)   # ← before_op emitido aqui
         self.codigo_assembly.append(linha)
-        self.codigo_assembly.extend(footer)
+        self.codigo_assembly.extend(after_op)
+
         return Token(TipoToken.MEMORIA, tmp_key, self.current_line, operacao.coluna)
 
-print("==== TESTE INTEIRO ====\n")
 
+# ── Testes ───────────────────────────────────────────────────────────────────
+
+print("==== TESTE INTEIRO ====\n")
 tokens_int = [
     Token(TipoToken.NUMERO_INTEIRO, "3", 1, 1),
     Token(TipoToken.NUMERO_INTEIRO, "5", 1, 3),
@@ -176,17 +204,23 @@ tokens_int = [
     Token(TipoToken.NUMERO_INTEIRO, "2", 1, 7),
     Token(TipoToken.OPERADOR, "*", 1, 9),
 ]
-
 gerador = geradorAssembly()
 print(gerador.gerarAssembly(tokens_int))
 
-print("\n==== TESTE FLOAT ====\n")
-
-tokens_float = [
-    Token(TipoToken.NUMERO_INTEIRO, "10", 1, 1),
-    Token(TipoToken.NUMERO_INTEIRO, "3", 1, 5),
-    Token(TipoToken.OPERADOR, "//", 1, 9),
+print("\n==== TESTE POTENCIA ====\n")
+tokens_pow = [
+    Token(TipoToken.NUMERO_INTEIRO, "2", 1, 1),
+    Token(TipoToken.NUMERO_INTEIRO, "3", 1, 3),
+    Token(TipoToken.OPERADOR, "^", 1, 5),
 ]
-
 gerador = geradorAssembly()
-print(gerador.gerarAssembly(tokens_float))
+print(gerador.gerarAssembly(tokens_pow))
+
+print("\n==== TESTE RESTO ====\n")
+tokens_mod = [
+    Token(TipoToken.NUMERO_INTEIRO, "10", 1, 1),
+    Token(TipoToken.NUMERO_INTEIRO, "3",  1, 5),
+    Token(TipoToken.OPERADOR, "%", 1, 9),
+]
+gerador = geradorAssembly()
+print(gerador.gerarAssembly(tokens_mod))
