@@ -4,7 +4,6 @@ from parseExpressao import AnalisadorLexico
 from lerArquivo import lerArquivo
 from gerarAssembly import geradorAssembly
 
-
 def main():
     if len(sys.argv) < 2:
         print("Uso correto:")
@@ -26,13 +25,22 @@ def main():
         print("Erro ao ler arquivo:", erro)
         sys.exit(1)
 
+    analisador = AnalisadorLexico()
+
     for i, linha in enumerate(linhas, start=1):
         try:
-            print(f"\n===== LINHA {i} =====")
-            print(f"Entrada: {linha}")
+            analisador.parseExpressao(linha, i)
+        except Exception as erro:
+            print(f"Erro na linha {i}: {linha}")
+            print("Detalhe:", erro)
 
-            analisador = AnalisadorLexico(linha)
-            tokens = analisador.parseExpressao()
+    for i, tokens in enumerate(analisador.matriz_tokens, start=1):
+        try:
+            print(f"\n===== LINHA {i} =====")
+            print("Tokens:")
+
+            for t in tokens:
+                print(t)
 
             gerador = geradorAssembly()
             assembly = gerador.gerarAssembly(tokens)
@@ -41,8 +49,9 @@ def main():
             print(assembly)
 
         except Exception as erro:
-            print(f"Erro na linha {i}: {linha}")
+            print(f"Erro ao gerar assembly na linha {i}")
             print("Detalhe:", erro)
+
 
 
 if __name__ == "__main__":
