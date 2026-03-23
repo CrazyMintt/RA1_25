@@ -1,12 +1,11 @@
-
 import sys
+
 from parseExpressao import AnalisadorLexico
 from lerArquivo import lerArquivo
-
+from gerarAssembly import geradorAssembly
 
 
 def main():
-
     if len(sys.argv) < 2:
         print("Uso correto:")
         print("python main.py arquivo.txt")
@@ -29,15 +28,22 @@ def main():
 
     for i, linha in enumerate(linhas, start=1):
         try:
+            print(f"\n===== LINHA {i} =====")
+            print(f"Entrada: {linha}")
+
             analisador = AnalisadorLexico(linha)
             tokens = analisador.parseExpressao()
 
-            for token in tokens:
-                print(token)
+            gerador = geradorAssembly()
+            assembly = gerador.gerarAssembly(tokens)
+
+            print("\nAssembly gerado:")
+            print(assembly)
 
         except Exception as erro:
             print(f"Erro na linha {i}: {linha}")
             print("Detalhe:", erro)
+
 
 if __name__ == "__main__":
     main()
