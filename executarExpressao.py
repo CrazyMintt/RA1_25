@@ -3,7 +3,7 @@ import math
 
 class InterpretadorRPN:
     def __init__(self):
-        # Gerenciamento de múltiplas variáveis na memória
+        # Dicionário para gerenciar múltiplas variáveis na memória (MEM)
         self.memoria = {}
         # Histórico de resultados para suportar (N RES)
         self.historico = []
@@ -11,10 +11,11 @@ class InterpretadorRPN:
     def executar(self, tokens: list[Token]):
         stack = []
         
-        # Filtrar parênteses para a execução RPN (estruturais)
-        # Na RPN pura parênteses são ignorados, mas aqui eles vão delimitar o escopo.
-        
         for token in tokens:
+            # Ignoramos parênteses na avaliação RPN direta
+            if token.tipo in [TipoToken.PARENTESE_ESQ, TipoToken.PARENTESE_DIR]:
+                continue
+
             if token.tipo in [TipoToken.NUMERO_INTEIRO, TipoToken.NUMERO_REAL]:
                 stack.append(float(token.valor))
             
@@ -44,22 +45,39 @@ class InterpretadorRPN:
                     stack.append(math.pow(a, b))
             
             elif token.tipo == TipoToken.MEMORIA:
-                # Se houver algo na pilha, pode ser uma atribuição (V MEM)
-                # Se não, é uma recuperação (MEM)
-                pass
+                # Lógica: (V MEM) armazena, (MEM) recupera
+                if stack:
+                    # Se há valor na pilha, armazena (V MEM)
+                    valor = stack.pop()
+                    self.memoria[token.valor] = valor
+                    # O comando de armazenamento retorna o próprio valor para a pilha?
+                    # Se a pilha ficar vazia, retorna o valor armazenado
+                    stack.append(valor) 
+                else:
+                    # Se pilha vazia, recupera (MEM)
+                    valor = self.memoria.get(token.valor, 0.0)
+                    stack.append(valor)
                 
             elif token.tipo == TipoToken.KEYWORD and token.valor == "RES":
                 # (N RES) - N deve estar no topo da pilha
-                pass
+                if not stack:
+                    raise Exception(f"Erro na linha {token.linha}: Comando RES sem índice.")
+                
+                n = int(stack.pop())
+                if n < 0 or n >= len(self.historico):
+                    # Se não houver histórico suficiente, retorna 0.0 ou erro?
+                    valor_res = 0.0
+                else:
+                    # N=0 é o último resultado, N=1 o penúltimo, etc.
+                    valor_res = self.historico[-(n + 1)]
+                
+                stack.append(valor_res)
 
-        if not stack:
-            return 0.0
-        
-        resultado = stack[-1]
+        resultado = stack[-1] if stack else 0.0
         self.historico.append(resultado)
         return resultado
 
-# Instância global para manter estado entre linhas (escopo do arquivo)
+# Instância global para manter estado entre as linhas do arquivo
 _interpretador_global = InterpretadorRPN()
 
 def executarExpressao(tokens: list[Token]):
