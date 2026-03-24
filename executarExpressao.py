@@ -11,8 +11,9 @@ class InterpretadorRPN:
     def executar(self, tokens: list[Token]):
         stack = []
         
-        for token in tokens:
-            # Ignoramos parênteses na avaliação RPN direta
+        for i in range(len(tokens)):
+            token = tokens[i]
+            
             if token.tipo in [TipoToken.PARENTESE_ESQ, TipoToken.PARENTESE_DIR]:
                 continue
 
@@ -45,40 +46,57 @@ class InterpretadorRPN:
                     stack.append(math.pow(a, b))
             
             elif token.tipo == TipoToken.MEMORIA:
-                # Lógica: (V MEM) armazena, (MEM) recupera
-                if stack:
-                    # Se há valor na pilha, armazena (V MEM)
+                # Lógica de Atribuição vs Busca
+                proximo_is_fim = False
+                if i + 1 < len(tokens):
+                    if tokens[i+1].tipo == TipoToken.PARENTESE_DIR:
+                        proximo_is_fim = True
+                else:
+                    proximo_is_fim = True
+
+                if proximo_is_fim and stack:
                     valor = stack.pop()
                     self.memoria[token.valor] = valor
-                    # O comando de armazenamento retorna o próprio valor para a pilha?
-                    # Se a pilha ficar vazia, retorna o valor armazenado
                     stack.append(valor) 
                 else:
-                    # Se pilha vazia, recupera (MEM)
                     valor = self.memoria.get(token.valor, 0.0)
                     stack.append(valor)
                 
             elif token.tipo == TipoToken.KEYWORD and token.valor == "RES":
-                # (N RES) - N deve estar no topo da pilha
                 if not stack:
                     raise Exception(f"Erro na linha {token.linha}: Comando RES sem índice.")
                 
                 n = int(stack.pop())
                 if n < 0 or n >= len(self.historico):
-                    # Se não houver histórico suficiente, retorna 0.0 ou erro?
                     valor_res = 0.0
                 else:
-                    # N=0 é o último resultado, N=1 o penúltimo, etc.
+                    # N=0 é a última linha, N=1 a penúltima...
                     valor_res = self.historico[-(n + 1)]
                 
                 stack.append(valor_res)
 
         resultado = stack[-1] if stack else 0.0
-        self.historico.append(resultado)
         return resultado
 
-# Instância global para manter estado entre as linhas do arquivo
+    def prepararExpressaoParaAssembly(self, tokens: list[Token]):
+        """
+        Método solicitado para lidar com parênteses aninhados.
+        Retorna uma lista de tokens em RPN pura, facilitando a geração de Assembly
+        pelo Aluno 3, removendo a necessidade de tratar parênteses lá.
+        """
+        rpn_pura = []
+        for t in tokens:
+            if t.tipo not in [TipoToken.PARENTESE_ESQ, TipoToken.PARENTESE_DIR]:
+                rpn_pura.append(t)
+        return rpn_pura
+
+# Instância global
 _interpretador_global = InterpretadorRPN()
 
 def executarExpressao(tokens: list[Token]):
-    return _interpretador_global.executar(tokens)
+    res = _interpretador_global.executar(tokens)
+    _interpretador_global.historico.append(res)
+    return res
+
+def lidarComParentesesAninhados(tokens: list[Token]):
+    return _interpretador_global.prepararExpressaoParaAssembly(tokens)
