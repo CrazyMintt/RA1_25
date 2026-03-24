@@ -5,7 +5,6 @@ OPERACOES_DIVISIVAS = ["/", "//", "%"]
 class geradorAssembly():
     def __init__(self):
         self.memoria = {}
-        self.pilha = []
         self.codigo_assembly = []
         self.data_section = []
         self.current_line = 0
@@ -28,23 +27,42 @@ class geradorAssembly():
         else:
             print(self.regs_livres_int)
             self.regs_livres_int.append(reg)
-
+    def resolver_parenteses(self, tokens: list[Token]):
+        pilha_parentes_abertos = []
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
+            if token.tipo == TipoToken.PARENTESE_ESQ:
+                pilha_parentes_abertos.append(i)
+                i += 1
+            elif token.tipo == TipoToken.PARENTESE_DIR:
+                i_abertura = pilha_parentes_abertos.pop()
+                tokens_in_p = tokens[i_abertura + 1 : i]   # conteúdo entre ( )
+                _, pilha = self.gerarAssembly(tokens_in_p)
+                tokens[i_abertura : i + 1] = pilha          # substitui ( conteúdo )
+                print("TESTE PARENTESES:\n")
+                print([token.valor for token in tokens])
+                i = i_abertura + len(pilha)                  # reposiciona o índice
+            else:
+                i += 1
+        print([token.valor for token in tokens])
+        return tokens
     def gerarAssembly(self, tokens: list[Token]) -> str:
+        pilha = []
+        tokens = self.resolver_parenteses(tokens)
         for token in tokens:
-            print(f"pilha: {self.pilha}")
 
             if token.linha != self.current_line:
-                self.pilha = []
+                pilha = []
                 self.current_line = token.linha
-
             if token.tipo == TipoToken.OPERADOR:
-                b = self.pilha.pop()
-                a = self.pilha.pop()
+                b = pilha.pop()
+                a = pilha.pop()
                 new_token = self.criar_op_line_assembly(a, b, token)
-                self.pilha.append(new_token)
+                pilha.append(new_token)
 
             elif token.tipo not in (TipoToken.PARENTESE_DIR, TipoToken.PARENTESE_ESQ):
-                self.pilha.append(token)
+                pilha.append(token)
 
         assembly  = ".section .data\n"
         assembly += "\n".join(self.data_section)
@@ -52,7 +70,7 @@ class geradorAssembly():
         assembly += "\n".join(self.codigo_assembly)
         assembly += "\nfim:"
         assembly += "\nB fim"
-        return assembly
+        return assembly,pilha
 
     def get_assembly_keyword(self, operacao: Token, eh_float: bool) -> str:
         if eh_float:
@@ -219,8 +237,12 @@ print(gerador.gerarAssembly(tokens_pow))
 print("\n==== TESTE RESTO ====\n")
 tokens_mod = [
     Token(TipoToken.NUMERO_INTEIRO, "10", 1, 1),
-    Token(TipoToken.NUMERO_INTEIRO, "3",  1, 5),
-    Token(TipoToken.OPERADOR, "%", 1, 9),
+    Token(TipoToken.PARENTESE_ESQ, "(", 1, 3),
+    Token(TipoToken.NUMERO_INTEIRO, "3",  1, 4),
+    Token(TipoToken.NUMERO_INTEIRO, "6",  1, 5),
+    Token(TipoToken.OPERADOR, "+", 1, 9),
+    Token(TipoToken.PARENTESE_DIR, ")", 1, 6),
+    Token(TipoToken.OPERADOR, "+", 1, 9),
 ]
 gerador = geradorAssembly()
 print(gerador.gerarAssembly(tokens_mod))
