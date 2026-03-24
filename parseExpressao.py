@@ -5,8 +5,8 @@ SEPARADOR_DECIMAL = "."
 NUMEROS_VALIDOS = [str(i) for i in range(0, 10)]
 OPERADORES_VALIDOS = ["+", "-", "*", "/", "%", "^"]
 RES_KEYWORD = "RES"
-PARENTESES_DIR = "("
-PARENTESE_ESQ = ")"
+PARENTESE_ESQ = "("
+PARENTESE_DIR = ")"
 
 
 class ErroLexico(Exception):
@@ -71,7 +71,7 @@ class AnalisadorLexico:
 
         return (
             self.peek_atual() == SEPARADOR_TOKEN
-            or self.peek_atual() == ")"
+            or self.peek_atual() == PARENTESE_DIR
             or self.peek_atual() == ""
         )
 
@@ -121,10 +121,10 @@ class AnalisadorLexico:
         elif atual in OPERADORES_VALIDOS:
             self.estadoOperador(token)
 
-        elif atual == "(":
+        elif atual == PARENTESE_DIR:
             self.estadoParenteseDir(token)
 
-        elif atual == ")":
+        elif atual == PARENTESE_ESQ:
             self.estadoParenteseEsq(token)
 
         # Keyword RES
@@ -210,16 +210,16 @@ class AnalisadorLexico:
         else:
             self.estadoErro(token)
 
-    def estadoParenteseDir(self, token: Token):
-        token.tipo = TipoToken.PARENTESE_DIR
+    def estadoParenteseEsq(self, token: Token):
+        token.tipo = TipoToken.PARENTESE_ESQ
         token.valor = self.peek_atual()
         self.avancar()
 
-        # Qualquer coisa pode vir depois de um PARENTESE_DIR
+        # Qualquer coisa pode vir depois de um PARENTESE_ESQ
         self.estadoFimToken(token)
 
-    def estadoParenteseEsq(self, token: Token):
-        token.tipo = TipoToken.PARENTESE_ESQ
+    def estadoParenteseDir(self, token: Token):
+        token.tipo = TipoToken.PARENTESE_DIR
         token.valor = self.peek_atual()
         self.avancar()
 
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     analisador = AnalisadorLexico()
 
     analisador.parseExpressao(
-        "1 11 1.1 * // / + - % ^ RES MEM TESTE GAMER () ( ) (11 1 +) *",
+        "1 11 1.1 * // / + - % ^ RES MEM TESTE GAMER ( ) () (11 1 +) *",
         1,
     )
     analisador.parseExpressao(
