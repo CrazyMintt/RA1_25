@@ -62,11 +62,12 @@ class AnalisadorLexico:
     def __init__(self):
         self.linha_atual = 0
         self.coluna_atual = 0
+        self.expressao = ""
         self.tokens_linha_atual = []
         self.matriz_tokens = []
 
     def is_fim_token(self) -> bool:
-        # O fim de um token é o espaço " ", um parêntese esquerdo ")" ou string vazia ""
+        """O fim de um token é o espaço ' ', um parêntese direito ')' ou string vazia ''"""
 
         return (
             self.peek_atual() == SEPARADOR_TOKEN
@@ -87,29 +88,29 @@ class AnalisadorLexico:
             return ""  # String vazia se for o fim
 
     def parseExpressao(self, expressao: str, numero_linha: int):
-        """Função chamada para cada linha (expressão) que será analisada"""
-
-        # Caso não seja a primeira linha
-        # if self.tokens_linha_atual:
-        #    self.matriz_tokens.append(self.tokens_linha_atual)
-        #    self.tokens_linha_atual = []
+        """
+        Função chamada para cada linha (expressão) que será analisada.
+        A `expressão` deve ser uma string de caracteres válidos, sem quebra de linha `\\n` no final
+        """
 
         # Prepara o estado para a nova linha
         self.expressao = expressao
         self.linha_atual = numero_linha
         self.coluna_atual = 0
+        self.tokens_linha_atual = []
 
         self.estadoInicial()
 
     def estadoInicial(self):
         atual = self.peek_atual()
-        token = Token(coluna=self.coluna_atual)
+        token = Token(linha=self.linha_atual, coluna=self.coluna_atual)
 
         # Chegou no fim da expressao
         if not atual:
+            # Adiciona a linha lida à matriz
             self.matriz_tokens.append(self.tokens_linha_atual)
-            self.tokens_linha_atual = []
 
+        # Ignora espacos vazios (volta pro estado inicial)
         elif atual == SEPARADOR_TOKEN:
             self.avancar()
             self.estadoInicial()
@@ -228,6 +229,7 @@ class AnalisadorLexico:
             self.estadoErro(token)
 
     def estadoComandoR(self, token: Token):
+        """Estado para primeira letra da keyword RES"""
         token.tipo = TipoToken.KEYWORD
         token.valor += self.peek_atual()
         self.avancar()
@@ -240,6 +242,8 @@ class AnalisadorLexico:
             self.estadoErro(token)
 
     def estadoComandoE(self, token: Token):
+        """Estado para segunda letra da keyword RES"""
+
         token.tipo = TipoToken.KEYWORD
         token.valor += self.peek_atual()
         self.avancar()
@@ -252,6 +256,7 @@ class AnalisadorLexico:
             self.estadoErro(token)
 
     def estadoComandoS(self, token: Token):
+        """Estado para terceira e última letra da keyword RES"""
         token.tipo = TipoToken.KEYWORD
         token.valor += self.peek_atual()
         self.avancar()
@@ -264,6 +269,7 @@ class AnalisadorLexico:
             self.estadoErro(token)
 
     def estadoComandoMemoria(self, token: Token):
+        """Estado para comandos de memória. Devem ser letras maiúsculas"""
         token.tipo = TipoToken.MEMORIA
         token.valor += self.peek_atual()
         self.avancar()
@@ -280,7 +286,6 @@ class AnalisadorLexico:
         self.estadoInicial()
 
     def estadoErro(self, token: Token):
-        print(f"Estado de erro! {token}")
         raise ErroTokenInvalido(f"{token.valor}", token.linha, token.coluna)
 
 
@@ -288,9 +293,14 @@ if __name__ == "__main__":
     analisador = AnalisadorLexico()
 
     analisador.parseExpressao(
-        "1 11 1.1 // / + - % ^ RES MEM TESTE GAMER () ( ) (11 1 +) (1 MEM)", 1
+        "1 11 1.1 * // / + - % ^ RES MEM TESTE GAMER () ( ) (11 1 +) *",
+        1,
     )
-
+    analisador.parseExpressao(
+        "LEGAL - + * 1.1 - (1 MEM -) + (RES) (NOME) RA (REA) RESA RES 1 +",
+        2,
+    )
     for i in analisador.matriz_tokens:
+        print(f"\n ---nova linha---\n")
         for j in i:
             print(j)
