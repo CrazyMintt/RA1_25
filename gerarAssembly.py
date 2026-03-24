@@ -24,6 +24,7 @@ class geradorAssembly:
             ".byte 0x7F",  # 8
             ".byte 0x6F",  # 9
         ])
+        self.codigo_assembly.append("BL clear_display")
         self.data_section.append(".align 3")
         self.data_section.append("dez_float: .double 10.0")
 
@@ -47,7 +48,7 @@ class geradorAssembly:
 
     def gerarAssembly(self, tokens: list[Token]) -> str:
         for token in tokens:
-            print(f"pilha: {self.pilha}")
+        
 
             if token.linha != self.current_line:
                 self.pilha = []
@@ -109,6 +110,32 @@ display_float:
     STR R2, [R0]
 
     POP {R1, R2, R3, R4, LR}
+    BX LR
+
+clear_display:
+    PUSH {R1, R2, LR}
+
+    MOV R2, #0
+
+    LDR R1, =0xFF200020
+    STR R2, [R1]
+
+    LDR R1, =0xFF200030
+    STR R2, [R1]
+
+    LDR R1, =0xFF200040
+    STR R2, [R1]
+
+    LDR R1, =0xFF200050
+    STR R2, [R1]
+
+    LDR R1, =0xFF200060
+    STR R2, [R1]
+
+    LDR R1, =0xFF200070
+    STR R2, [R1]
+
+    POP {R1, R2, LR}
     BX LR
 """
         return assembly
@@ -259,7 +286,8 @@ display_float:
             linha = ""
         else:
             linha = f"{kw} {reg_resultado}, {reg_a}, {reg_b}"
-
+            
+        # ── after_op: conversões pós-operação ───────────────────────────────
         after_op = []
 
         if operacao.valor == "//" or operacao.valor == "%":
