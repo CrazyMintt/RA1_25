@@ -40,12 +40,9 @@ class geradorAssembly():
                 tokens_in_p = tokens[i_abertura + 1 : i]   # conteúdo entre ( )
                 _, pilha = self.gerarAssembly(tokens_in_p)
                 tokens[i_abertura : i + 1] = pilha          # substitui ( conteúdo )
-                print("TESTE PARENTESES:\n")
-                print([token.valor for token in tokens])
                 i = i_abertura + len(pilha)                  # reposiciona o índice
             else:
                 i += 1
-        print([token.valor for token in tokens])
         return tokens
     def gerarAssembly(self, tokens: list[Token]) -> str:
         pilha = []
