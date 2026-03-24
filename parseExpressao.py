@@ -1,12 +1,12 @@
 from enum import Enum
 
-QUEBRA_LINHA = "\n"
 SEPARADOR_TOKEN = " "
 SEPARADOR_DECIMAL = "."
 NUMEROS_VALIDOS = [str(i) for i in range(0, 10)]
 OPERADORES_VALIDOS = ["+", "-", "*", "/", "%", "^"]
 RES_KEYWORD = "RES"
-PARENTESES = ["(", ")"]
+PARENTESES_DIR = "("
+PARENTESE_ESQ = ")"
 
 
 class ErroLexico(Exception):
@@ -16,11 +16,6 @@ class ErroLexico(Exception):
         super().__init__(f"Erro na linha {linha}, coluna {coluna}: {mensagem}")
         self.linha = linha
         self.coluna = coluna
-
-
-class ErroParentesesDesbalanceados(ErroLexico):
-    def __init__(self, linha: int, coluna: int):
-        super().__init__("Parênteses desbalanceados.", linha, coluna)
 
 
 class ErroTokenInvalido(ErroLexico):
@@ -39,12 +34,14 @@ class TipoToken(Enum):
 
 
 class Token:
-    tipo: TipoToken
-    valor: str
-    linha: int
-    coluna: int
 
-    def __init__(self, tipo: TipoToken, valor: str, linha: int, coluna: int):
+    def __init__(
+        self,
+        tipo: TipoToken | None = None,
+        valor: str = "",
+        linha: int = 0,
+        coluna: int = 0,
+    ):
         self.tipo = tipo
         self.valor = valor
         self.linha = linha
@@ -55,225 +52,161 @@ class Token:
 
 
 class AnalisadorLexico:
-    pos: int  # Posição geral da string que está sendo analisada
     linha_atual: int  # Linha do arquivo que está sendo analisada
     coluna_atual: int  # Posição (coluna) da linha que está sendo analisada
     expressao: str  # Conteúdo completo da linha que está sendo analisada
-    parenteses: int  # Contador de balanceamento de parenteses
     # Matriz para armazenar todos os tokens de todas as expressoes (linhas)
     matriz_tokens: list[list[Token]]
 
     def __init__(self):
-        self.pos = 0
         self.linha_atual = 0
         self.coluna_atual = 0
-        self.parenteses = 0
         self.matriz_tokens = []
+
+    def is_fim_token(self) -> bool:
+        # O fim de um token é o espaço " " ou um parêntese esquerdo ")"
+        return self.peek_atual() == SEPARADOR_TOKEN or self.peek_atual == ")"
 
     def avancar(self):
         """Avanca um char e atualiza as posições"""
-        if self.pos < len(self.expressao):
-            atual = self.expressao[self.pos]
-
-            # Se for outra linha, reseta coluna e incrementa linha
-            if atual == QUEBRA_LINHA:
-                self.coluna_atual = 0
-                self.linha_atual += 1
-            else:
-                self.coluna_atual += 1
-            self.pos += 1
+        if self.coluna_atual < len(self.expressao):
+            self.coluna_atual += 1
 
     def peek_atual(self) -> str:
         """Olha se o caractere atual é o final sem atualizar posição"""
-        if self.pos < len(self.expressao):
-            return self.expressao[self.pos]
+        if self.coluna_atual < len(self.expressao):
+            return self.expressao[self.coluna_atual]
         else:
             return ""  # String vazia se for o fim
 
     def parseExpressao(self, expressao: str, numero_linha: int):
-        """
-        Loop principal do programa que faz o parse da expressão.
-        """
+        """Função chamada para cada linha (expressão) que será analisada"""
 
         # Prepara o estado para a nova linha
         self.expressao = expressao
-        self.pos = 0
-        self.coluna_atual = 0
         self.linha_atual = numero_linha
-        self.parenteses = 0
-        tokens_linha_atual: list[Token] = []
+        self.coluna_atual = 0
 
-        while self.peek_atual():
-            atual = self.expressao[self.pos]
+        self.estadoInicial()
 
-            # Ignora espaços em branco
-            if atual == SEPARADOR_TOKEN:
-                self.avancar()
-                continue
+    def estadoInicial(self):
+        atual = self.peek_atual()
+        token = Token(coluna=self.coluna_atual)
 
-            if atual in NUMEROS_VALIDOS:
-                token = self.estadoNumero(self.coluna_atual)
+        if atual in NUMEROS_VALIDOS:
+            self.estadoNumero(token=token)
 
-            elif atual in OPERADORES_VALIDOS:
-                token = self.estadoOperador(self.coluna_atual)
+        elif atual in OPERADORES_VALIDOS:
+            self.estadoOperador(token)
 
-            elif atual in PARENTESES:
-                token = self.estadoParentese(self.coluna_atual)
+        elif atual in PARENTESES:
+            self.estadoParentese(self.coluna_atual)
 
-            # Keyword RES
-            elif atual == "R":
-                token = self.estadoComandoRes(self.coluna_atual)
+        # Keyword RES
+        elif atual == "R":
+            self.estadoComandoRes(self.coluna_atual)
 
-            # Identificadores de Memória são compostos de letras maíusculas
-            elif atual.isalpha() and atual.isupper():
-                token = self.estadoComandoMemoria(
-                    col_inicio=self.coluna_atual, lexema=None
-                )
-            else:
-                raise ErroTokenInvalido(atual, self.linha_atual, self.coluna_atual)
-
-            tokens_linha_atual.append(token)
-
-        # Verifica se os parenteses estão balanceados
-        if self.parenteses != 0:
-            raise ErroParentesesDesbalanceados(self.linha_atual, self.coluna_atual)
-
-        if tokens_linha_atual:
-            self.matriz_tokens.append(tokens_linha_atual)
-
-    def estadoNumero(self, col_inicio: int) -> Token:
-        # Inicializa o lexema com o char que entrou nesse estado
-        lexema: str = self.peek_atual()
-        self.avancar()
-
-        # Loop para identificar o token inteiro
-        while self.peek_atual() in NUMEROS_VALIDOS:
-            # Atualiza o lexema e avança
-            lexema += self.peek_atual()
-            self.avancar()
-
-        if self.peek_atual() == SEPARADOR_DECIMAL:
-            return self.estadoDecimal(lexema, col_inicio)
-
-        # Retorna ao chegar no fim da expressão
-        # ou encontrar um char que não é relacionado à número
-        return Token(
-            tipo=TipoToken.NUMERO_INTEIRO,
-            valor=lexema,
-            linha=self.linha_atual,
-            coluna=col_inicio,
-        )
-
-    def estadoDecimal(self, parte_inteira: str, col_inicio: int) -> Token:
-        """Estado para números com casas decimais.
-        A parte inteira do número (antes do '.') deve ser
-        passada como parâmetro, assim a coluna incial do número."""
-
-        # Inicializa o lexema com a parte inteira + a posição atual (deve ser SEPARADOR_DECIMAL)
-        lexema: str = parte_inteira + self.peek_atual()
-        self.avancar()
-
-        # Loop para identificar o token inteiro
-        while self.peek_atual() in NUMEROS_VALIDOS:
-
-            atual = self.peek_atual()
-
-            # Atualiza o lexema e avança
-            lexema += atual
-            self.avancar()
-
-        # Exception se o ultimo char do lexema for '.'
-        if lexema[-1] == SEPARADOR_DECIMAL:
-            raise ErroTokenInvalido(
-                "Numero decimal mal formatado", self.linha_atual, self.coluna_atual
-            )
-
-        if self.peek_atual() == SEPARADOR_DECIMAL:
-            raise ErroTokenInvalido(
-                "Token inválido: dois separadores de número decimal (.) encontrados.",
-                self.linha_atual,
-                self.coluna_atual,
-            )
-
-        # Retorna ao chegar no fim da expressão
-        # ou encontrar um char que não é relacionado à número
-        return Token(
-            tipo=TipoToken.NUMERO_REAL,
-            valor=lexema,
-            linha=self.linha_atual,
-            coluna=col_inicio,
-        )
-
-    def estadoOperador(self, col_inicio: int) -> Token:
-        # Incializa lexema com char que entrou nesse estado
-        lexema: str = self.expressao[self.pos]
-        self.avancar()
-
-        # O único operador composto por 2 chars é //
-        if self.peek_atual() == "/":
-            lexema += self.expressao[self.pos]
-            self.avancar()
-
-        return Token(
-            tipo=TipoToken.OPERADOR,
-            valor=lexema,
-            linha=self.linha_atual,
-            coluna=col_inicio,
-        )
-
-    def estadoParentese(self, col_inicio: int) -> Token:
-        # Incializa lexema com char que entrou nesse estado
-        lexema: str = self.expressao[self.pos]
-        self.avancar()
-
-        if lexema == "(":
-            tipo = TipoToken.PARENTESE_ESQ
-            self.parenteses += 1
+        # Identificadores de Memória são compostos de letras maíusculas
+        elif atual.isalpha() and atual.isupper():
+            self.estadoComandoMemoria(col_inicio=self.coluna_atual, lexema=None)
         else:
-            tipo = TipoToken.PARENTESE_DIR
-            self.parenteses -= 1
+            self.estadoErro(token)
 
-        return Token(
-            tipo=tipo,
-            valor=lexema,
-            linha=self.linha_atual,
-            coluna=col_inicio,
-        )
+    def estadoNumero(self, token: Token):
+        # Define o tipo do Token como NUMERO_INTEIRO
+        token.tipo = TipoToken.NUMERO_INTEIRO
+        # Adiciona o valor atual ao valor do Token
+        token.valor += self.peek_atual()
 
-    def estadoComandoRes(self, col_inicio: int) -> Token:
-        lexema = self.peek_atual()
         self.avancar()
 
-        # R -> E
+        if self.peek_atual() in NUMEROS_VALIDOS:
+            self.estadoNumero(token)
+        elif self.peek_atual() == SEPARADOR_DECIMAL:
+            self.estadoDecimal(token)
+        elif self.is_fim_token():
+            self.estadoFimToken(token)
+
+    def estadoDecimal(self, token: Token):
+        """Estado para números com casas decimais.
+        A parte inteira do número ja deve estar no Token"""
+
+        # Muda o tipo do Token para NUMERO_REAL
+        token.tipo = TipoToken.NUMERO_REAL
+        # Adiciona o valor da posição atual ao valor do token
+        token.valor += self.peek_atual()
+
+        self.avancar()
+
+        if self.peek_atual() in NUMEROS_VALIDOS:
+            self.estadoDecimal(token)
+        elif self.is_fim_token():
+            self.estadoFimToken(token)
+        else:
+            self.estadoErro(token)
+
+    def estadoOperador(self, token: Token):
+        token.tipo = TipoToken.OPERADOR
+        token.valor = self.peek_atual()
+        self.avancar()
+
+        if self.peek_atual() == "/":
+            self.estadoDivisaoInteiro(token)
+        elif self.is_fim_token():
+            self.estadoFimToken(token)
+        else:
+            self.estadoErro(token)
+
+    def estadoDivisaoInteiro(self, token: Token):
+        token.tipo = TipoToken.OPERADOR
+        token.valor += self.peek_atual()
+        self.avancar()
+
+        if self.is_fim_token():
+            self.estadoFimToken(token)
+        else:
+            self.estadoErro(token)
+
+    def estadoParenteseDir(self, token: Token):
+        self.tipo = TipoToken.PARENTESE_DIR
+        self.valor = self.peek_atual()
+        self.avancar()
+
+        if self.peek_atual() == SEPARADOR_TOKEN:
+            self.estadoFimToken(token)
+        else:
+            self.estadoErro(token)
+
+    def estadoParenteseEsq(self, token: Token):
+        self.tipo = TipoToken.PARENTESE_ESQ
+        self.valor = self.peek_atual()
+        self.avancar()
+
+        if self.peek_atual() == SEPARADOR_TOKEN:
+            self.estadoFimToken(token)
+        else:
+            self.estadoErro(token)
+
+    def estadoComandoR(self, token: Token):
+        self.tipo = TipoToken.KEYWORD
+        self.valor = self.peek_atual()
+
         if self.peek_atual() == "E":
-            lexema += self.peek_atual()
-            self.avancar()
-            # R -> E -> S
-            if self.peek_atual() == "S":
-                lexema += self.peek_atual()
-                self.avancar()
-                # R -> E -> S -> FIM
-                if not self.peek_atual().isalpha():
-                    return Token(
-                        tipo=TipoToken.KEYWORD,
-                        valor=lexema,
-                        linha=self.linha_atual,
-                        coluna=col_inicio,
-                    )
+            self.estadoComandoE(token)
 
-        # R -> FIM = Identificador de Memória
-        # R -> ... -> LETRA_MAIUSCULA = Identificador de Memória
-        if not self.peek_atual() or (
-            self.peek_atual().isalpha() and self.peek_atual().isupper()
-        ):
-            return self.estadoComandoMemoria(col_inicio, lexema)
+    def estadoComandoE(self, token: Token):
+        self.tipo = TipoToken.KEYWORD
+        self.valor = self.peek_atual()
 
-        return Token(
-            tipo=TipoToken.KEYWORD,
-            valor=lexema,
-            linha=self.linha_atual,
-            coluna=col_inicio,
-        )
+        if self.peek_atual() == "S":
+            self.estadoComandoE(token)
+
+    def estadoComandoS(self, token: Token):
+        self.tipo = TipoToken.KEYWORD
+        self.valor = self.peek_atual()
+
+        if self.is_fim_token():
+            self.estadoFimToken(token)
 
     def estadoComandoMemoria(self, col_inicio: int, lexema: str | None) -> Token:
         # Se lexema não foi inicializado ainda, inicializa com o atual
@@ -297,6 +230,12 @@ class AnalisadorLexico:
             linha=self.linha_atual,
             coluna=col_inicio,
         )
+
+    def estadoFimToken(self, token: Token):
+        self.matriz_tokens.append([token])
+
+    def estadoErro(self, token: Token):
+        raise ErroTokenInvalido("", token.linha, token.coluna)
 
 
 if __name__ == "__main__":
