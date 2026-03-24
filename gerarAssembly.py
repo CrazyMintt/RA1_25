@@ -77,7 +77,7 @@ display:
     LDRB R2, [R1, R0]
 
     LDR R1, =0xFF200020
-    STR R2, [R1]
+    STRB R2, [R1]       @ Correção: Usar STRB em vez de STR
 
     POP {R1, R2, LR}
     BX LR
@@ -85,9 +85,11 @@ display:
 display_float:
     PUSH {R1, R2, R3, R4, LR}
 
+    BL clear_display
+
     VCVT.S32.F64 S0, D0
     VMOV R0, S0
-    MOV R3, R0
+    MOV R3, R0          @ R3 = Parte inteira
 
     VCVT.F64.S32 D1, S0
     VSUB.F64 D2, D0, D1
@@ -97,45 +99,104 @@ display_float:
     VMUL.F64 D2, D2, D3
 
     VCVT.S32.F64 S1, D2
-    VMOV R4, S1
+    VMOV R4, S1         @ R4 = Primeira casa decimal
 
     LDR R1, =tabela_7seg
 
+    @ Casa decimal no HEX0
     LDRB R2, [R1, R4]
     LDR R0, =0xFF200020
-    STR R2, [R0]
+    STRB R2, [R0]
 
+    @ Parte inteira no HEX1 (para os dígitos ficarem juntos)
     LDRB R2, [R1, R3]
-    LDR R0, =0xFF200030
-    STR R2, [R0]
+    LDR R0, =0xFF200021
+    STRB R2, [R0]
 
     POP {R1, R2, R3, R4, LR}
     BX LR
 
 clear_display:
     PUSH {R1, R2, LR}
-
     MOV R2, #0
 
+    @ Limpa HEX0 a HEX3 (4 bytes juntos em 0xFF200020)
     LDR R1, =0xFF200020
-    STR R2, [R1]
+    STR R2, [R1]        @ Aqui STR é útil pois zera os 4 dígitos de uma vez
 
+    @ Limpa HEX4 a HEX5 (2 bytes em 0xFF200030)
     LDR R1, =0xFF200030
-    STR R2, [R1]
-
-    LDR R1, =0xFF200040
-    STR R2, [R1]
-
-    LDR R1, =0xFF200050
-    STR R2, [R1]
-
-    LDR R1, =0xFF200060
-    STR R2, [R1]
-
-    LDR R1, =0xFF200070
-    STR R2, [R1]
+    STRH R2, [R1]       @ STRH (Store Halfword) zera apenas 2 bytes
 
     POP {R1, R2, LR}
+    BX LR
+
+display_int:
+    PUSH {R1, R2, R3, R4, R5, R6, R7, R8, LR}
+
+    BL clear_display
+
+    LDR R6, =tabela_7seg
+    LDR R7, =0xFF200020  @ Endereço base (HEX0)
+    MOV R5, #10
+
+    MOV R4, R0
+
+    CMP R4, #0
+    BNE display_int_loop
+
+    @ Se o número for zero, exibe apenas no HEX0
+    MOV R1, #0
+    LDRB R2, [R6, R1]
+    STRB R2, [R7]
+    B fim_display_int
+
+display_int_loop:
+    MOV R3, #0
+
+loop_body:
+    CMP R3, #6
+    BEQ fim_display_int
+
+    MOV R1, R4
+    BL div_mod
+
+    LDRB R2, [R6, R1]
+    STRB R2, [R7]        @ Correção: Usar STRB para não apagar os outros dígitos
+
+    MOV R4, R0
+
+    CMP R4, #0
+    BEQ fim_display_int
+
+    @ Incrementa endereço em 1 byte (vai do HEX0 pro HEX1, etc)
+    ADD R7, R7, #1
+    
+    @ Verifica se passou do HEX3 (0xFF200023). Se sim, pula pro HEX4 (0xFF200030)
+    LDR R8, =0xFF200024
+    CMP R7, R8
+    BNE skip_jump
+    LDR R7, =0xFF200030
+skip_jump:
+
+    ADD R3, R3, #1
+    B loop_body
+
+fim_display_int:
+    POP {R1, R2, R3, R4, R5, R6, R7, R8, LR}
+    BX LR
+
+div_mod:
+    MOV R0, #0
+
+div_loop:
+    CMP R1, R5
+    BLT div_end
+    SUB R1, R1, R5
+    ADD R0, R0, #1
+    B div_loop
+
+div_end:
     BX LR
 """
         return assembly
@@ -191,8 +252,20 @@ clear_display:
             header += f"VLDR {reg_usado}, [R12]\n"
 
         elif token.tipo == TipoToken.NUMERO_INTEIRO:
+            valor = int(token.valor)
+
             reg_usado = self.alocar_reg(eh_float=False)
-            header += f"MOV {reg_usado}, #{token.valor}\n"
+
+            # se número for grande
+            if abs(valor) > 255:
+                label = f"int_{self.data_counter}"
+                self.data_counter += 1
+                self.data_section.append(f"{label}: .word {valor}")
+
+                header += f"LDR R12, ={label}\n"
+                header += f"LDR {reg_usado}, [R12]\n"
+            else:
+                header += f"MOV {reg_usado}, #{valor}\n"
 
         elif token.tipo == TipoToken.MEMORIA:
             reg_usado = self.memoria.get(token.valor)
@@ -261,14 +334,7 @@ clear_display:
         linhas.append(f"display_abs_ok_{op_id}:")
 
         # Mostra apenas o último dígito (0..9)
-        linhas.append("MOV R1, #10")
-        linhas.append(f"display_mod_loop_{op_id}:")
-        linhas.append("CMP R0, R1")
-        linhas.append(f"BLT display_mod_done_{op_id}")
-        linhas.append("SUB R0, R0, R1")
-        linhas.append(f"B display_mod_loop_{op_id}")
-        linhas.append(f"display_mod_done_{op_id}:")
-        linhas.append("BL display")
+        linhas.append("BL display_int")
 
         return linhas
 
@@ -363,3 +429,12 @@ tokens_float = [
 ]
 gerador = geradorAssembly()
 print(gerador.gerarAssembly(tokens_float))
+
+print("\n==== TESTE NUMERO GRANDE ====\n")
+tokens_grande = [
+    Token(TipoToken.NUMERO_INTEIRO, "1012", 1, 1),
+    Token(TipoToken.NUMERO_INTEIRO, "9023", 1, 11),
+    Token(TipoToken.OPERADOR, "+", 1, 21),
+]
+gerador = geradorAssembly()
+print(gerador.gerarAssembly(tokens_grande))
