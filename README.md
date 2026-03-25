@@ -10,10 +10,10 @@ Instituição: Pontifícia Universidade Católica do Paraná
 Professor: Frank Coelho de Alcantara
 
 Alunos:
-    - Bruno Betiatto Alves - [Brunobetiatto](https://github.com/Brunobetiatto)
-    - Bruno Himovski Opuszka Machado Dutra - [CrazyMintt](https://github.com/CrazyMintt)
-    - Leonardo Saito - [Leosaito632](https://github.com/Leosaito632)
-    - Vitor Nicoletti - [vitorNicoletti](https://github.com/vitorNicoletti)
+- Bruno Betiatto Alves - [Brunobetiatto](https://github.com/Brunobetiatto)
+- Bruno Himovski Opuszka Machado Dutra - [CrazyMintt](https://github.com/CrazyMintt)
+- Leonardo Saito - [Leosaito632](https://github.com/Leosaito632)
+- Vitor Nicoletti - [vitorNicoletti](https://github.com/vitorNicoletti)
 
 ---
 
