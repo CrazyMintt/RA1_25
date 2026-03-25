@@ -80,7 +80,7 @@ class AnalisadorLexico:
         """Retorna o Caractere atual"""
         return self.expressao[self.coluna_atual]
 
-    def parseExpressao(self, expressao: str, numero_linha: int):
+    def parseExpressao(self, expressao: str):
         """
         Função chamada para cada linha (expressão) que será analisada.
         A `expressão` deve ser uma string de caracteres válidos,
@@ -89,11 +89,12 @@ class AnalisadorLexico:
 
         # Prepara o estado para a nova linha
         self.expressao = expressao
-        self.linha_atual = numero_linha
+        self.linha_atual += 1
         self.coluna_atual = 0
         self.tokens_linha_atual = []
 
         self.estadoInicial()
+        return self.tokens_linha_atual
 
     def estadoInicial(self, token: Token | None = None):
         # Se receber um token, adiciona à lista de tokens
@@ -133,6 +134,7 @@ class AnalisadorLexico:
         elif atual.isalpha() and atual.isupper():
             self.estadoComandoMemoria(token)
         else:
+            token.valor = atual  # Adiciona o caractere onde o erro ocorreu
             self.estadoErro(token)
 
     def estadoNumero(self, token: Token):
@@ -286,18 +288,24 @@ class AnalisadorLexico:
             self.estadoErro(token)
 
 
-if __name__ == "__main__":
+def testes_analisador_lexico():
+    print("TESTES DO ANALISADOR LEXICO")
     analisador = AnalisadorLexico()
 
-    analisador.parseExpressao(
-        "1 11 1.1 * // / + - % ^ RES MEM TESTE GAMER ( ) () (11 1 +) *\n",
-        1,
+    expr_valida = analisador.parseExpressao(
+        "1 2 3.4 + - * / // ^ % R RE RES REA MEM TESTE () ( ) (MEM) (3 RES) ((1 4 +) (1 3 -) *)\n"
     )
-    analisador.parseExpressao(
-        "LEGAL - + * 1.1 - (1 MEM -) + (RES) R RE RER (NOME) RA (REA) RESA RES 1 +\n",
-        2,
-    )
-    for i in analisador.matriz_tokens:
-        print(f"\n ---nova linha---\n")
-        for j in i:
-            print(j)
+    print("\n".join([str(t) for t in expr_valida]))
+
+    try:
+        expr_invalida_1 = analisador.parseExpressao("10 3 + 1.1.\n")
+    except ErroTokenInvalido as e:
+        print(f"Erro esperado encontrado: {e}")
+    try:
+        expr_invalida_2 = analisador.parseExpressao("4 RES 1 MEM &\n")
+    except ErroTokenInvalido as e:
+        print(f"Erro esperado encontrado: {e}")
+
+
+if __name__ == "__main__":
+    testes_analisador_lexico()
