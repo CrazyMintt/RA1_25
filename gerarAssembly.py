@@ -2,16 +2,12 @@ from parseExpressao import Token, TipoToken
 
 OPERACOES_DIVISIVAS = ["/", "//", "%"]
 
-
 class geradorAssembly:
     def __init__(self):
         self.memoria = {}
         self.pilha = []
         self.codigo_assembly = []
-        self.data_section = []  # precisa existir antes de usar append/extend
-
-        # Tabela para seven-seg (HEX0)
-        
+        self.data_section = [] 
         
         self.codigo_assembly.append("BL clear_display")
         self.data_section.append(".align 3")
@@ -34,11 +30,9 @@ class geradorAssembly:
                 self.data_section.append(f"    .byte {hexa}  @ dígito {num}")
 
     def gerar_biblioteca_standard(self):
-        # Gerando a função display_int programaticamente
         self.codigo_assembly.append("\ndisplay_int:")
         
         # 1. Salva o contexto (Push)
-        # Usamos todos os registros que o seu alocador gerencia
         regs_para_salvar = ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "LR"]
         self.codigo_assembly.append(f"    PUSH {{{', '.join(regs_para_salvar)}}}")
 
@@ -57,7 +51,6 @@ class geradorAssembly:
         self.codigo_assembly.append(f"    MOV {reg_divisor}, #10")
         self.codigo_assembly.append(f"    MOV {reg_valor}, R0")
 
-        # 4. Lógica de loop (usando labels dinâmicas se quiser)
         self.codigo_assembly.append("    CMP R4, #0")
         self.codigo_assembly.append("    BNE display_int_loop")
         
@@ -132,43 +125,72 @@ class geradorAssembly:
     def gerar_display_float(self):
         self.codigo_assembly.append("\ndisplay_float:")
         
-        regs_salvar = ["R1", "R2", "R3", "R4", "LR"]
+        regs_salvar = ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "LR"]
         self.codigo_assembly.append(f"    PUSH {{{', '.join(regs_salvar)}}}")
         self.codigo_assembly.append("    BL clear_display")
 
-        # Converte o número total para inteiro (Parte Inteira)
+        # --- Extração Matemática ---
         self.codigo_assembly.append("    VCVT.S32.F64 S0, D0")
-        self.codigo_assembly.append("    VMOV R0, S0")
-        self.codigo_assembly.append("    MOV R3, R0")
-
-        # Isola a parte decimal
+        self.codigo_assembly.append("    VMOV R4, S0")         # R4 = Parte Inteira
         self.codigo_assembly.append("    VCVT.F64.S32 D1, S0")
-        self.codigo_assembly.append("    VSUB.F64 D2, D0, D1")
-
-        # Multiplica por 10.0
+        self.codigo_assembly.append("    VSUB.F64 D2, D0, D1") # D2 = Decimal (0.x)
         self.codigo_assembly.append("    LDR R1, =dez_float")
         self.codigo_assembly.append("    VLDR D3, [R1]")
-        self.codigo_assembly.append("    VMUL.F64 D2, D2, D3")
-
-        # Converte o decimal para inteiro
+        self.codigo_assembly.append("    VMUL.F64 D2, D2, D3") # Shift decimal
         self.codigo_assembly.append("    VCVT.S32.F64 S1, D2")
-        self.codigo_assembly.append("    VMOV R4, S1")
+        self.codigo_assembly.append("    VMOV R8, S1")         # R8 = Dígito decimal
 
-        self.codigo_assembly.append("    LDR R1, =tabela_7seg")
+        # --- Configuração de Hardware ---
+        self.codigo_assembly.append("    LDR R6, =tabela_7seg")
+        self.codigo_assembly.append("    LDR R7, =0xFF200020")
+        self.codigo_assembly.append("    MOV R9, #0")          # HEX0 (Posição 0)
+        self.codigo_assembly.append("    MOV R5, #10")
+        
+        # --- Desenha Decimal (HEX0) ---
+        self.codigo_assembly.append("    LDRB R2, [R6, R8]")
+        self.codigo_assembly.append("    LDR R10, [R7]")
+        self.codigo_assembly.append("    MOV R3, #0xFF")
+        self.codigo_assembly.append("    LSL R3, R3, R9")
+        self.codigo_assembly.append("    BIC R10, R10, R3")
+        self.codigo_assembly.append("    LSL R2, R2, R9")
+        self.codigo_assembly.append("    ORR R10, R10, R2")
+        self.codigo_assembly.append("    STR R10, [R7]")
+        
+        # --- Criação do "Buraco" (Pula o HEX1) ---
+        # Adicionamos 16 bits (8 do HEX0 + 8 do HEX1 vazio)
+        self.codigo_assembly.append("    ADD R9, R9, #16") 
 
-        # Escreve a Casa decimal no HEX0
-        self.codigo_assembly.append("    LDRB R2, [R1, R4]")
-        self.codigo_assembly.append("    LDR R0, =0xFF200020")
-        self.codigo_assembly.append("    STRB R2, [R0]")
+        # --- Loop da Parte Inteira (Inicia no HEX2) ---
+        self.codigo_assembly.append("\ndisplay_float_loop:")
+        self.codigo_assembly.append("    MOV R1, R4")
+        self.codigo_assembly.append("    BL div_mod")
+        self.codigo_assembly.append("    LDRB R2, [R6, R1]")
 
-        # Escreve a Parte inteira no HEX1 
-        self.codigo_assembly.append("    LDRB R2, [R1, R3]")
-        self.codigo_assembly.append("    LDR R0, =0xFF200021")
-        self.codigo_assembly.append("    STRB R2, [R0]")
+        self.codigo_assembly.append("    LDR R10, [R7]")
+        self.codigo_assembly.append("    MOV R3, #0xFF")
+        self.codigo_assembly.append("    LSL R3, R3, R9")
+        self.codigo_assembly.append("    BIC R10, R10, R3")
+        self.codigo_assembly.append("    LSL R2, R2, R9")
+        self.codigo_assembly.append("    ORR R10, R10, R2")
+        self.codigo_assembly.append("    STR R10, [R7]")
 
+        self.codigo_assembly.append("    MOV R4, R0")
+        self.codigo_assembly.append("    CMP R4, #0")
+        self.codigo_assembly.append("    BEQ fim_display_float")
+
+        # Controle de Endereço/Overflow de Displays
+        self.codigo_assembly.append("    ADD R9, R9, #8")
+        self.codigo_assembly.append("    CMP R9, #32")
+        self.codigo_assembly.append("    BNE display_float_loop")
+        
+        self.codigo_assembly.append("    LDR R7, =0xFF200030")
+        self.codigo_assembly.append("    MOV R9, #0")
+        self.codigo_assembly.append("    B display_float_loop")
+
+        self.codigo_assembly.append("\nfim_display_float:")
         self.codigo_assembly.append(f"    POP {{{', '.join(regs_salvar)}}}")
         self.codigo_assembly.append("    BX LR")
-
+        
     def alocar_reg(self, eh_float: bool) -> str:
         pool = self.regs_livres_float if eh_float else self.regs_livres_int
         if not pool:
@@ -183,8 +205,6 @@ class geradorAssembly:
 
     def gerarAssembly(self, tokens: list[Token]) -> str:
         for token in tokens:
-        
-
             if token.linha != self.current_line:
                 self.pilha = []
                 self.current_line = token.linha
@@ -210,7 +230,6 @@ class geradorAssembly:
         assembly = ".section .data\n" + "\n".join(self.data_section)
         assembly += "\n\n.section .text\n" + "\n".join(self.codigo_assembly)
         return assembly
-        
 
     def get_assembly_keyword(self, operacao: Token, eh_float: bool) -> str:
         if eh_float:
@@ -230,7 +249,6 @@ class geradorAssembly:
                 "*": "MUL",
                 "^": "MUL",
             }
-
         kw = mapa.get(operacao.valor)
         if kw is None:
             raise ValueError(f"Operador desconhecido: '{operacao.valor}'")
@@ -402,7 +420,6 @@ class geradorAssembly:
 
         return Token(TipoToken.MEMORIA, tmp_key, self.current_line, operacao.coluna)
 
-
 # ── Testes ───────────────────────────────────────────────────────────────────
 
 print("==== TESTE INTEIRO ====\n")
@@ -445,9 +462,9 @@ print(gerador.gerarAssembly(tokens_mod))
 
 print("\n==== TESTE FLOAT ====\n")
 tokens_float = [
-    Token(TipoToken.NUMERO_REAL, "10.0", 1, 1),
+    Token(TipoToken.NUMERO_REAL, "100.0", 1, 1),
     Token(TipoToken.NUMERO_REAL, "3.0", 1, 5),
-    Token(TipoToken.OPERADOR, "/", 1, 9),
+    Token(TipoToken.OPERADOR, "+", 1, 9),
 ]
 gerador = geradorAssembly()
 print(gerador.gerarAssembly(tokens_float))
@@ -461,9 +478,7 @@ tokens_grande = [
 gerador = geradorAssembly()
 print(gerador.gerarAssembly(tokens_grande))
 
-
 print("==== TESTE MÚLTIPLAS LINHAS ====\n")
-
 
 tokens_multi = [
 
