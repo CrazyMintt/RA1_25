@@ -1,3 +1,7 @@
+# Bruno Betiatto Alves - Brunobetiatto
+# Bruno Himovski Opuszka Machado Dutra - CrazyMintt
+# Leonardo Saito - Leosaito632
+# Vitor Nicoletti - vitorNicoletti
 from enum import Enum
 
 SEPARADOR_EXPRESSAO = "\n"
@@ -56,7 +60,7 @@ class AnalisadorLexico:
     linha_atual: int  # Linha do arquivo que está sendo analisada
     coluna_atual: int  # Posição (coluna) da linha que está sendo analisada
     expressao: str  # Conteúdo completo da linha que está sendo analisada
-    tokens_linha_atual: list[Token] = []  # Tokens da expressao atual
+    tokens_linha_atual: list[Token]  # Tokens da expressao atual
     # Matriz para armazenar todos os tokens de todas as expressoes (linhas)
     matriz_tokens: list[list[Token]]
 
