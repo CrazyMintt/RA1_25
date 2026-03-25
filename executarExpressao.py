@@ -1,4 +1,4 @@
-from parseExpressao import Token, TipoToken
+from parseExpressao import Token, TipoToken, AnalisadorLexico
 import math
 
 class InterpretadorRPN:
@@ -142,15 +142,15 @@ def processarArquivo(caminho: str) -> list[float]:
     Lê um arquivo de expressões RPN (uma por linha), executa cada linha
     e retorna a lista de resultados.
 
-    Exmeplo de uso por enquanto: python executarExpressao.py teste1.txt
+    Exmeplo de uso por enquanto: python executarExpressao.py Teste1.txt
     """
-    from parseExpressao import AnalisadorLexico
-
     interpretador = criarInterpretador()
     resultados: list[float] = []
 
     with open(caminho, "r", encoding="utf-8") as arquivo:
         linhas = arquivo.readlines()
+
+    analisador = AnalisadorLexico()
 
     print(f"\nProcessando: {caminho}")
     print("=" * 55)
@@ -160,8 +160,8 @@ def processarArquivo(caminho: str) -> list[float]:
         if not linha or linha.startswith("#"): # ignora linhas vazias e comentários
             continue
         try:
-            lexico = AnalisadorLexico(linha)
-            tokens = lexico.parseExpressao()
+            analisador.parseExpressao(linha + "\n", numero)
+            tokens = analisador.matriz_tokens[-1]
             resultado = executarExpressao(tokens, interpretador)
             resultados.append(resultado)
             # Prints para teste
@@ -177,8 +177,6 @@ def processarArquivo(caminho: str) -> list[float]:
 # Remover no merge
 
 def _testar():
-    from parseExpressao import AnalisadorLexico
-
     # Cada grupo de casos usa instância própria para garantir isolamento total. As variaveis salvas em B ou C não devem ser compartilhadas com A.
     casos = [
         # (descrição, expressão, deve_falhar, grupo)
@@ -201,15 +199,23 @@ def _testar():
         "C": criarInterpretador(),  # nunca recebe resultado → (1 RES) tem que falhar
     }
 
+    # Um analisador por grupo de testes, assim como um arquivo teria o seu
+    analisadores = {
+        "A": AnalisadorLexico(),
+        "B": AnalisadorLexico(),
+        "C": AnalisadorLexico(),
+    }
+
     print("=" * 55)
     print("TESTES executarExpressao")
     print("=" * 55)
 
     for descricao, expressao, deve_falhar, grupo in casos:
         interp = interpretadores[grupo]
+        analisador = analisadores[grupo]
         try:
-            lexico = AnalisadorLexico(expressao)
-            tokens = lexico.parseExpressao()
+            analisador.parseExpressao(expressao + "\n", len(analisador.matriz_tokens) + 1)
+            tokens = analisador.matriz_tokens[-1]
             resultado = executarExpressao(tokens, interp)
             status = "PASS" if not deve_falhar else "FALHOU (deveria lançar erro)"
             print(f"[{status}] {descricao}: {resultado}")
@@ -224,15 +230,21 @@ def _testar():
     # Usa executar() diretamente (sem registrar no histórico) para não "contaminar" o estado entre as verificações de (1 RES) e (2 RES).
     print("--- Teste RES com histórico ---")
     interp_res = criarInterpretador()
+    analisador_res = AnalisadorLexico()
 
-    executarExpressao(AnalisadorLexico("(3.0 4.0 +)").parseExpressao(), interp_res)  # → 7.0
-    executarExpressao(AnalisadorLexico("(2.0 3.0 *)").parseExpressao(), interp_res)  # → 6.0
+    analisador_res.parseExpressao("(3.0 4.0 +)\n", 1)
+    executarExpressao(analisador_res.matriz_tokens[-1], interp_res)  # → 7.0
+
+    analisador_res.parseExpressao("(2.0 3.0 *)\n", 2)
+    executarExpressao(analisador_res.matriz_tokens[-1], interp_res)  # → 6.0
     # histórico é exatamente [7.0, 6.0]
 
-    r1 = interp_res.executar(AnalisadorLexico("(1 RES)").parseExpressao())
+    analisador_res.parseExpressao("(1 RES)\n", 3)
+    r1 = interp_res.executar(analisador_res.matriz_tokens[-1])
     print(f"[{'PASS' if r1 == 6.0 else 'FALHOU'}] (1 RES) esperado 6.0, obtido {r1}")
 
-    r2 = interp_res.executar(AnalisadorLexico("(2 RES)").parseExpressao())
+    analisador_res.parseExpressao("(2 RES)\n", 4)
+    r2 = interp_res.executar(analisador_res.matriz_tokens[-1])
     print(f"[{'PASS' if r2 == 7.0 else 'FALHOU'}] (2 RES) esperado 7.0, obtido {r2}")
 
 
