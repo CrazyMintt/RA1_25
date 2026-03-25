@@ -1,5 +1,6 @@
 from enum import Enum
 
+SEPARADOR_EXPRESSAO = "\n"
 SEPARADOR_TOKEN = " "
 SEPARADOR_DECIMAL = "."
 NUMEROS_VALIDOS = [str(i) for i in range(0, 10)]
@@ -67,30 +68,23 @@ class AnalisadorLexico:
         self.matriz_tokens = []
 
     def is_fim_token(self) -> bool:
-        """O fim de um token é o espaço ' ', um parêntese direito ')' ou string vazia ''"""
-
-        return (
-            self.peek_atual() == SEPARADOR_TOKEN
-            or self.peek_atual() == PARENTESE_DIR
-            or self.peek_atual() == ""
-        )
+        """O fim de um token é o espaço ' ' ou um parêntese direito ')'"""
+        return self.get_atual() == SEPARADOR_TOKEN or self.get_atual() == PARENTESE_DIR
 
     def avancar(self):
         """Avanca um char e atualiza as posições"""
         if self.coluna_atual < len(self.expressao):
             self.coluna_atual += 1
 
-    def peek_atual(self) -> str:
-        """Olha se o caractere atual é o final sem atualizar posição"""
-        if self.coluna_atual < len(self.expressao):
-            return self.expressao[self.coluna_atual]
-        else:
-            return ""  # String vazia se for o fim
+    def get_atual(self) -> str:
+        """Retorna o Caractere atual"""
+        return self.expressao[self.coluna_atual]
 
     def parseExpressao(self, expressao: str, numero_linha: int):
         """
         Função chamada para cada linha (expressão) que será analisada.
-        A `expressão` deve ser uma string de caracteres válidos, sem quebra de linha `\\n` no final
+        A `expressão` deve ser uma string de caracteres válidos,
+        com quebra de linha `\\n` no final para delimitar o fim da expressão
         """
 
         # Prepara o estado para a nova linha
@@ -101,8 +95,12 @@ class AnalisadorLexico:
 
         self.estadoInicial()
 
-    def estadoInicial(self):
-        atual = self.peek_atual()
+    def estadoInicial(self, token: Token | None = None):
+        # Se receber um token, adiciona à lista de tokens
+        if token:
+            self.tokens_linha_atual.append(token)
+
+        atual = self.get_atual()
         token = Token(linha=self.linha_atual, coluna=self.coluna_atual)
 
         # Chegou no fim da expressao
@@ -141,18 +139,16 @@ class AnalisadorLexico:
         # Define o tipo do Token como NUMERO_INTEIRO
         token.tipo = TipoToken.NUMERO_INTEIRO
         # Adiciona o valor atual ao valor do Token
-        token.valor += self.peek_atual()
+        token.valor += self.get_atual()
 
         self.avancar()
 
-        if self.peek_atual() in NUMEROS_VALIDOS:
+        if self.get_atual() in NUMEROS_VALIDOS:
             self.estadoNumero(token)
-        elif self.peek_atual() == SEPARADOR_DECIMAL:
+        elif self.get_atual() == SEPARADOR_DECIMAL:
             self.estadoPonto(token)
-        elif self.is_fim_token():
-            self.estadoFimToken(token)
         else:
-            self.estadoErro(token)
+            self.transicoesFixas(token)
 
     def estadoPonto(self, token: Token):
         """Estado para '.' logo depois da parte inteira do número.
@@ -161,11 +157,11 @@ class AnalisadorLexico:
         # Muda o tipo do Token para NUMERO_REAL
         token.tipo = TipoToken.NUMERO_REAL
         # Adiciona o valor da posição atual ao valor do token
-        token.valor += self.peek_atual()
+        token.valor += self.get_atual()
 
         self.avancar()
 
-        if self.peek_atual() in NUMEROS_VALIDOS:
+        if self.get_atual() in NUMEROS_VALIDOS:
             self.estadoDecimal(token)
         else:
             self.estadoErro(token)
@@ -177,127 +173,128 @@ class AnalisadorLexico:
         # Muda o tipo do Token para NUMERO_REAL
         token.tipo = TipoToken.NUMERO_REAL
         # Adiciona o valor da posição atual ao valor do token
-        token.valor += self.peek_atual()
+        token.valor += self.get_atual()
 
         self.avancar()
 
-        if self.peek_atual() in NUMEROS_VALIDOS:
+        if self.get_atual() in NUMEROS_VALIDOS:
             self.estadoDecimal(token)
-        elif self.is_fim_token():
-            self.estadoFimToken(token)
         else:
-            self.estadoErro(token)
+            self.transicoesFixas(token)
 
     def estadoOperador(self, token: Token):
         token.tipo = TipoToken.OPERADOR
-        token.valor = self.peek_atual()
+        token.valor = self.get_atual()
         self.avancar()
 
-        if self.peek_atual() == "/":
+        if self.get_atual() == "/":
             self.estadoDivisaoInteiro(token)
-        elif self.is_fim_token():
-            self.estadoFimToken(token)
         else:
-            self.estadoErro(token)
+            self.transicoesFixas(token)
 
     def estadoDivisaoInteiro(self, token: Token):
         token.tipo = TipoToken.OPERADOR
-        token.valor += self.peek_atual()
+        token.valor += self.get_atual()
         self.avancar()
 
-        if self.is_fim_token():
-            self.estadoFimToken(token)
-        else:
-            self.estadoErro(token)
+        self.transicoesFixas(token)
 
     def estadoParenteseEsq(self, token: Token):
         token.tipo = TipoToken.PARENTESE_ESQ
-        token.valor = self.peek_atual()
+        token.valor = self.get_atual()
         self.avancar()
 
-        # Qualquer coisa pode vir depois de um PARENTESE_ESQ
-        self.estadoFimToken(token)
+        if self.get_atual() == SEPARADOR_TOKEN:
+            self.avancar()
+            self.estadoInicial(token)
+        elif self.get_atual() == SEPARADOR_EXPRESSAO:
+            self.estadoFinal(token)
+        else:
+            # Qualquer coisa pode vir depois de um PARENTESE_ESQ
+            self.estadoInicial(token)
 
     def estadoParenteseDir(self, token: Token):
         token.tipo = TipoToken.PARENTESE_DIR
-        token.valor = self.peek_atual()
+        token.valor = self.get_atual()
         self.avancar()
 
-        if self.is_fim_token():
-            self.estadoFimToken(token)
-        else:
-            self.estadoErro(token)
+        self.transicoesFixas(token)
 
     def estadoComandoR(self, token: Token):
         """Estado para primeira letra da keyword RES"""
-        token.tipo = TipoToken.KEYWORD
-        token.valor += self.peek_atual()
+        token.tipo = TipoToken.MEMORIA
+        token.valor += self.get_atual()
         self.avancar()
 
-        if self.peek_atual() == "E":
+        if self.get_atual() == "E":
             self.estadoComandoE(token)
-        elif self.peek_atual().isalpha() and self.peek_atual().isupper():
+        elif self.get_atual().isalpha() and self.get_atual().isupper():
             self.estadoComandoMemoria(token)
         else:
-            self.estadoErro(token)
+            self.transicoesFixas(token)
 
     def estadoComandoE(self, token: Token):
         """Estado para segunda letra da keyword RES"""
 
-        token.tipo = TipoToken.KEYWORD
-        token.valor += self.peek_atual()
+        token.tipo = TipoToken.MEMORIA
+        token.valor += self.get_atual()
         self.avancar()
 
-        if self.peek_atual() == "S":
+        if self.get_atual() == "S":
             self.estadoComandoS(token)
-        elif self.peek_atual().isalpha() and self.peek_atual().isupper():
+        elif self.get_atual().isalpha() and self.get_atual().isupper():
             self.estadoComandoMemoria(token)
         else:
-            self.estadoErro(token)
+            self.transicoesFixas(token)
 
     def estadoComandoS(self, token: Token):
         """Estado para terceira e última letra da keyword RES"""
         token.tipo = TipoToken.KEYWORD
-        token.valor += self.peek_atual()
+        token.valor += self.get_atual()
         self.avancar()
 
-        if self.is_fim_token():
-            self.estadoFimToken(token)
-        elif self.peek_atual().isalpha() and self.peek_atual().isupper():
+        if self.get_atual().isalpha() and self.get_atual().isupper():
             self.estadoComandoMemoria(token)
         else:
-            self.estadoErro(token)
+            self.transicoesFixas(token)
 
     def estadoComandoMemoria(self, token: Token):
         """Estado para comandos de memória. Devem ser letras maiúsculas"""
         token.tipo = TipoToken.MEMORIA
-        token.valor += self.peek_atual()
+        token.valor += self.get_atual()
         self.avancar()
 
-        if self.peek_atual().isalpha() and self.peek_atual().isupper():
+        if self.get_atual().isalpha() and self.get_atual().isupper():
             self.estadoComandoMemoria(token)
-        elif self.is_fim_token():
-            self.estadoFimToken(token)
         else:
-            self.estadoErro(token)
+            self.transicoesFixas(token)
 
-    def estadoFimToken(self, token: Token):
+    def estadoFinal(self, token: Token):
         self.tokens_linha_atual.append(token)
-        self.estadoInicial()
+        self.matriz_tokens.append(self.tokens_linha_atual)
 
     def estadoErro(self, token: Token):
         raise ErroTokenInvalido(f"{token.valor}", token.linha, token.coluna)
+
+    def transicoesFixas(self, token: Token):
+        """Função auxilar para transições de estado presente em quase todos os estados. Não é um estado."""
+        if self.is_fim_token():
+            self.estadoInicial(token)
+        elif self.get_atual() == SEPARADOR_EXPRESSAO:
+            self.estadoFinal(token)
+        else:
+            self.estadoErro(token)
 
 
 if __name__ == "__main__":
     analisador = AnalisadorLexico()
 
     analisador.parseExpressao(
-        "1 11 1.1 * // / + - % ^ RES MEM TESTE GAMER ( ) () (11 1 +) *",
+        "1 11 1.1 * // / + - % ^ RES MEM TESTE GAMER ( ) () (11 1 +) *\n",
         1,
     )
     analisador.parseExpressao(
-        "LEGAL - + * 1.1 - (1 MEM -) + (RES) (NOME) RA (REA) RESA RES 1 +",
+        "LEGAL - + * 1.1 - (1 MEM -) + (RES) R RE RER (NOME) RA (REA) RESA RES 1 +\n",
         2,
     )
     for i in analisador.matriz_tokens:
