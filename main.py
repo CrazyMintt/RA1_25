@@ -35,15 +35,12 @@ def main():
     analisador = AnalisadorLexico()
     for i, linha in enumerate(linhas, start=1):
         try:
-            analisador.parseExpressao(linha, i)
+            analisador.parseExpressao(linha) 
         except Exception as erro:
             print(f"Erro léxico na linha {i}: {erro}")
-
-    all_tokens = [t for sublista in analisador.matriz_tokens for t in sublista]
-
     try:
         gerador = geradorAssembly()
-        assembly = gerador.gerarAssembly(all_tokens)
+        assembly, pilha = gerador.gerarAssembly(analisador.matriz_tokens)
         print(assembly)
     except Exception as erro:
         print(f"Erro na geração de assembly: {erro}")
