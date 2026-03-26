@@ -1,3 +1,4 @@
+# Grupo: RA1 25
 # Bruno Betiatto Alves - Brunobetiatto
 # Bruno Himovski Opuszka Machado Dutra - CrazyMintt
 # Leonardo Saito - Leosaito632
@@ -299,37 +300,3 @@ class AnalisadorLexico:
             self.estadoFinal(token)
         else:
             self.estadoErro(token)
-
-
-def testes_analisador_lexico():
-    print("TESTES DO ANALISADOR LEXICO")
-    analisador = AnalisadorLexico()
-
-    print("Testes com Tokens Válidos")
-    expr_valida_1 = analisador.parseExpressao(
-        "1 2 3.4 + - * / // ^ % R RE RES REA MEM\n"
-    )
-    print("\n".join([str(t) for t in expr_valida_1]))
-    print("\n---\n")
-    expr_valida_2 = analisador.parseExpressao(
-        "TESTE (MEM) (3 RES) ((1 4 +) (1 3 -) *)\n"
-    )
-    print("\n".join([str(t) for t in expr_valida_2]))
-
-    print("\nTestes com Erros esperados\n")
-    try:
-        expr_invalida_1 = analisador.parseExpressao("10 3 + 1.1.\n")
-    except ErroTokenInvalido as e:
-        print(f"Erro esperado encontrado: {e}")
-    try:
-        expr_invalida_2 = analisador.parseExpressao("4 RES 1 MEM &\n")
-    except ErroTokenInvalido as e:
-        print(f"Erro esperado encontrado: {e}")
-    try:
-        expr_invalida_3 = analisador.parseExpressao("1.1 2 + VAR")
-    except ErroTokenInvalido as e:
-        print(f"Erro esperado encontrado: {e}")
-
-
-if __name__ == "__main__":
-    testes_analisador_lexico()
