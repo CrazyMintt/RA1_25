@@ -10,21 +10,14 @@ GRUPO: RA1-25
 
 import sys
 from parseExpressao import AnalisadorLexico
-from lerArquivo import lerArquivo
 from gerarAssembly import geradorAssembly
+from utils import salvar_tokens, salvar_assembly, obter_argumentos_cli, lerArquivo
 
 def main():
-    if len(sys.argv) < 2:
-        print("Uso: python main.py arquivo.txt")
-        sys.exit(1)
+    caminho_arquivo, nome_base = obter_argumentos_cli()
 
-    nomeArquivo = sys.argv[1]
-    
-    if not nomeArquivo.lower().endswith(".txt"):
-        print("Erro: o arquivo deve ser .txt")
-        sys.exit(1)
     try:
-        linhas = lerArquivo(nomeArquivo)
+        linhas = lerArquivo(caminho_arquivo)
         if not linhas:
             print("Arquivo vazio.")
             sys.exit(1)
@@ -38,10 +31,15 @@ def main():
             analisador.parseExpressao(linha) 
         except Exception as erro:
             print(f"Erro léxico na linha {i}: {erro}")
+
+    salvar_tokens(nome_base, analisador.matriz_tokens)
+
     try:
         gerador = geradorAssembly()
         assembly, pilha = gerador.gerarAssembly(analisador.matriz_tokens)
-        print(assembly)
+        
+        salvar_assembly(nome_base, assembly)
+
     except Exception as erro:
         print(f"Erro na geração de assembly: {erro}")
 
