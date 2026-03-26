@@ -1,3 +1,8 @@
+# Grupo: RA1 25
+# Bruno Betiatto Alves - Brunobetiatto
+# Bruno Himovski Opuszka Machado Dutra - CrazyMintt
+# Leonardo Saito - Leosaito632
+# Vitor Nicoletti - vitorNicoletti
 from enum import Enum
 
 SEPARADOR_EXPRESSAO = "\n"
@@ -22,6 +27,11 @@ class ErroLexico(Exception):
 class ErroTokenInvalido(ErroLexico):
     def __init__(self, char: str, linha: int, coluna: int):
         super().__init__(f"Caractere ou token inválido '{char}'.", linha, coluna)
+
+
+class ErroExpressaoInvalida(Exception):
+    def __init__(self, mensagem: str):
+        super().__init__(f"Erro ao criar Tokens da Expressão: {mensagem}")
 
 
 class TipoToken(Enum):
@@ -72,13 +82,17 @@ class AnalisadorLexico:
         return self.get_atual() == SEPARADOR_TOKEN or self.get_atual() == PARENTESE_DIR
 
     def avancar(self):
-        """Avanca um char e atualiza as posições"""
-        if self.coluna_atual < len(self.expressao):
-            self.coluna_atual += 1
+        """Avanca um char e atualiza a posição"""
+        self.coluna_atual += 1
 
     def get_atual(self) -> str:
         """Retorna o Caractere atual"""
-        return self.expressao[self.coluna_atual]
+        if self.coluna_atual < len(self.expressao):
+            return self.expressao[self.coluna_atual]
+        else:
+            raise ErroExpressaoInvalida(
+                "Caractere sinalizando fim da expressão não encontrado. (\\n)"
+            )
 
     def parseExpressao(self, expressao: str, numero_linha: int):
         """
@@ -284,6 +298,7 @@ class AnalisadorLexico:
             self.estadoFinal(token)
         else:
             self.estadoErro(token)
+<<<<<<< HEAD
 
 
 if __name__ == "__main__":
@@ -301,3 +316,5 @@ if __name__ == "__main__":
         print(f"\n ---nova linha---\n")
         for j in i:
             print(j)
+=======
+>>>>>>> main
