@@ -14,7 +14,7 @@ class geradorAssembly():
         self.regs_livres_int = [f"R{i}" for i in reversed(range(0, 10))]
         self.regs_livres_float = [f"D{i}" for i in reversed(range(1, 32))]
 
-    def alocar_reg(self, eh_float: b2ool) -> str:
+    def alocar_reg(self, eh_float: bool) -> str:
         pool = self.regs_livres_float if eh_float else self.regs_livres_int
         if not pool:
             raise RuntimeError("Registradores esgotados")
@@ -162,7 +162,7 @@ class geradorAssembly():
         assembly += "\n".join(self.codigo_assembly)
         assembly += "\nfim:\n"
         assembly += "B fim"
-        return assembly, pilha
+        return assembly
 
     def get_assembly_keyword(self, operacao: Token, eh_float: bool) -> str:
         if eh_float:
