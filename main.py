@@ -1,58 +1,47 @@
-import sys
+'''
+Equipe:
+Bruno Betiatto Alves @Brunobetiatto
+Bruno Himovski Opuszka Machado Dutra @CrazyMintt 
+Leonardo Saito @Leosaito632 
+Vitor Nicoletti @vitorNicoletti
 
+GRUPO: RA1-25   
+'''
+
+import sys
 from parseExpressao import AnalisadorLexico
-from lerArquivo import lerArquivo
 from gerarAssembly import geradorAssembly
+from utils import salvar_tokens, salvar_assembly, obter_argumentos_cli, lerArquivo
 
 def main():
-    if len(sys.argv) < 2:
-        print("Uso correto:")
-        print("python main.py arquivo.txt")
-        sys.exit(1)
-
-    nomeArquivo = sys.argv[1]
-
-    if not nomeArquivo.lower().endswith(".txt"):
-        print("Erro: o arquivo de entrada deve ser do tipo .txt")
-        sys.exit(1)
+    caminho_arquivo, nome_base = obter_argumentos_cli()
 
     try:
-        linhas = lerArquivo(nomeArquivo)
+        linhas = lerArquivo(caminho_arquivo)
         if not linhas:
-            print("O arquivo está vazio.")
+            print("Arquivo vazio.")
             sys.exit(1)
     except Exception as erro:
-        print("Erro ao ler arquivo:", erro)
+        print(f"Erro na leitura: {erro}")
         sys.exit(1)
 
     analisador = AnalisadorLexico()
-
     for i, linha in enumerate(linhas, start=1):
         try:
-            analisador.parseExpressao(linha, i)
+            analisador.parseExpressao(linha) 
         except Exception as erro:
-            print(f"Erro na linha {i}: {linha}")
-            print("Detalhe:", erro)
+            print(f"Erro léxico na linha {i}: {erro}")
 
-    for i, tokens in enumerate(analisador.matriz_tokens, start=1):
-        try:
-            print(f"\n===== LINHA {i} =====")
-            print("Tokens:")
+    salvar_tokens(nome_base, analisador.matriz_tokens)
 
-            for t in tokens:
-                print(t)
+    try:
+        gerador = geradorAssembly()
+        assembly, pilha = gerador.gerarAssembly(analisador.matriz_tokens)
+        
+        salvar_assembly(nome_base, assembly)
 
-            gerador = geradorAssembly()
-            assembly = gerador.gerarAssembly(tokens)
-
-            print("\nAssembly gerado:")
-            print(assembly)
-
-        except Exception as erro:
-            print(f"Erro ao gerar assembly na linha {i}")
-            print("Detalhe:", erro)
-
-
+    except Exception as erro:
+        print(f"Erro na geração de assembly: {erro}")
 
 if __name__ == "__main__":
     main()

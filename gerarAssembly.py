@@ -1,3 +1,12 @@
+'''
+Equipe:
+Bruno Betiatto Alves @Brunobetiatto
+Bruno Himovski Opuszka Machado Dutra @CrazyMintt
+Leonardo Saito @Leosaito632
+Vitor Nicoletti @vitorNicoletti
+
+GRUPO: RA1-25
+'''
 from parseExpressao import Token, TipoToken
 
 OPERACOES_DIVISIVAS = ["/", "//", "%"]
@@ -15,7 +24,7 @@ class geradorAssembly():
         self.regs_livres_float = [f"D{i}" for i in reversed(range(1, 30))] 
         self.label_display_counter = 0
 
-    def alocar_reg(self, eh_float: b2ool) -> str:
+    def alocar_reg(self, eh_float: bool) -> str:
         pool = self.regs_livres_float if eh_float else self.regs_livres_int
         if not pool:
             raise RuntimeError("Registradores esgotados")
@@ -454,6 +463,7 @@ class geradorAssembly():
         self.codigo_assembly.append("    B loop_body")
 
         self.codigo_assembly.append("\nfim_display_int:")
+        self.codigo_assembly.append("    BKPT")
         self.codigo_assembly.append(f"    POP {{{', '.join(regs_para_salvar)}}}")
         self.codigo_assembly.append("    BX LR")
 
@@ -544,6 +554,7 @@ class geradorAssembly():
         self.codigo_assembly.append("    B display_float_loop")
 
         self.codigo_assembly.append("\nfim_display_float:")
+        self.codigo_assembly.append("    BKPT")
         self.codigo_assembly.append(f"    POP {{{', '.join(regs_salvar)}}}")
         self.codigo_assembly.append("    BX LR")
 
