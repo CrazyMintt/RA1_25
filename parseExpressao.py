@@ -28,6 +28,11 @@ class ErroTokenInvalido(ErroLexico):
         super().__init__(f"Caractere ou token inválido '{char}'.", linha, coluna)
 
 
+class ErroExpressaoInvalida(Exception):
+    def __init__(self, mensagem: str):
+        super().__init__(f"Erro ao criar Tokens da Expressão: {mensagem}")
+
+
 class TipoToken(Enum):
     NUMERO_INTEIRO = 1
     NUMERO_REAL = 2
@@ -76,13 +81,17 @@ class AnalisadorLexico:
         return self.get_atual() == SEPARADOR_TOKEN or self.get_atual() == PARENTESE_DIR
 
     def avancar(self):
-        """Avanca um char e atualiza as posições"""
-        if self.coluna_atual < len(self.expressao):
-            self.coluna_atual += 1
+        """Avanca um char e atualiza a posição"""
+        self.coluna_atual += 1
 
     def get_atual(self) -> str:
         """Retorna o Caractere atual"""
-        return self.expressao[self.coluna_atual]
+        if self.coluna_atual < len(self.expressao):
+            return self.expressao[self.coluna_atual]
+        else:
+            raise ErroExpressaoInvalida(
+                "Caractere sinalizando fim da expressão não encontrado. (\\n)"
+            )
 
     def parseExpressao(self, expressao: str):
         """
@@ -296,17 +305,28 @@ def testes_analisador_lexico():
     print("TESTES DO ANALISADOR LEXICO")
     analisador = AnalisadorLexico()
 
-    expr_valida = analisador.parseExpressao(
-        "1 2 3.4 + - * / // ^ % R RE RES REA MEM TESTE () ( ) (MEM) (3 RES) ((1 4 +) (1 3 -) *)\n"
+    print("Testes com Tokens Válidos")
+    expr_valida_1 = analisador.parseExpressao(
+        "1 2 3.4 + - * / // ^ % R RE RES REA MEM\n"
     )
-    print("\n".join([str(t) for t in expr_valida]))
+    print("\n".join([str(t) for t in expr_valida_1]))
+    print("\n---\n")
+    expr_valida_2 = analisador.parseExpressao(
+        "TESTE (MEM) (3 RES) ((1 4 +) (1 3 -) *)\n"
+    )
+    print("\n".join([str(t) for t in expr_valida_2]))
 
+    print("\nTestes com Erros esperados\n")
     try:
         expr_invalida_1 = analisador.parseExpressao("10 3 + 1.1.\n")
     except ErroTokenInvalido as e:
         print(f"Erro esperado encontrado: {e}")
     try:
         expr_invalida_2 = analisador.parseExpressao("4 RES 1 MEM &\n")
+    except ErroTokenInvalido as e:
+        print(f"Erro esperado encontrado: {e}")
+    try:
+        expr_invalida_3 = analisador.parseExpressao("1.1 2 + VAR")
     except ErroTokenInvalido as e:
         print(f"Erro esperado encontrado: {e}")
 
