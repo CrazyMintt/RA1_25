@@ -386,7 +386,7 @@ class geradorAssembly():
 
         return Token(TipoToken.MEMORIA, tmp_key, self.current_line, operacao.coluna)
 
-#Estou chamando o que esta daqui pra trás de bilblioteca, são todos os códigos que geram as funções de display, divisão, etc. O que esta antes disso é o código de geração do assembly em si, que é o foco do trabalho. Assim fica mais organizado e fácil de entender a parte principal do gerador.
+#Estou chamando o que esta daqui pra trás de bilblioteca, são todos os códigos que geram as funções de display, divisão, etc. O que esta antes disso é o código de geração do assembly em si. Assim fica mais organizado e fácil de entender a parte principal do gerador.
 
     def gerar_data_section(self):
         mapa_7seg = {
