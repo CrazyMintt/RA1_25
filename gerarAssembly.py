@@ -15,7 +15,7 @@ class geradorAssembly():
         self.regs_livres_float = [f"D{i}" for i in reversed(range(1, 30))] 
         self.label_display_counter = 0
 
-    def alocar_reg(self, eh_float: bool) -> str:
+    def alocar_reg(self, eh_float: b2ool) -> str:
         pool = self.regs_livres_float if eh_float else self.regs_livres_int
         if not pool:
             raise RuntimeError("Registradores esgotados")
@@ -23,6 +23,7 @@ class geradorAssembly():
        
 
     def liberar_reg(self, reg: str):
+        # FIX 1: removidos os print de debug que poluíam a saída
         if reg.startswith("D"):
             if reg not in self.regs_livres_float:
                 self.regs_livres_float.append(reg)
