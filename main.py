@@ -10,9 +10,8 @@ GRUPO: RA1-25
 
 import sys
 from parseExpressao import AnalisadorLexico
-from lerArquivo import lerArquivo
 from gerarAssembly import geradorAssembly
-from utils import salvar_tokens, salvar_assembly, obter_argumentos_cli
+from utils import salvar_tokens, salvar_assembly, obter_argumentos_cli, lerArquivo
 
 def main():
     caminho_arquivo, nome_base = obter_argumentos_cli()

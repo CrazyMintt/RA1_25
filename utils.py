@@ -38,3 +38,7 @@ def obter_argumentos_cli():
     nome_base = os.path.splitext(os.path.basename(caminho_arquivo))[0]
     
     return caminho_arquivo, nome_base
+
+
+def lerArquivo(): 
+    print("função de ler arquivo")
