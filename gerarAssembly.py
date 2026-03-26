@@ -131,7 +131,7 @@ class geradorAssembly():
             elif token.tipo not in (TipoToken.PARENTESE_DIR, TipoToken.PARENTESE_ESQ):
                 pilha.append(token)
         return pilha
-    def resolver_RES(self,token_matrix:[list[Token]]):
+    def resolver_RES(self,token_matrix:list[list[Token]]):
         for i,tokens_line in enumerate(token_matrix):
             valor_anterior = None
             for token in tokens_line:
