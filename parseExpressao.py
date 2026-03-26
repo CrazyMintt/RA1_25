@@ -66,7 +66,7 @@ class AnalisadorLexico:
     linha_atual: int  # Linha do arquivo que está sendo analisada
     coluna_atual: int  # Posição (coluna) da linha que está sendo analisada
     expressao: str  # Conteúdo completo da linha que está sendo analisada
-    tokens_linha_atual: list[Token] = []  # Tokens da expressao atual
+    tokens_linha_atual: list[Token]  # Tokens da expressao atual
     # Matriz para armazenar todos os tokens de todas as expressoes (linhas)
     matriz_tokens: list[list[Token]]
 
@@ -94,7 +94,7 @@ class AnalisadorLexico:
                 "Caractere sinalizando fim da expressão não encontrado. (\\n)"
             )
 
-    def parseExpressao(self, expressao: str, numero_linha: int):
+    def parseExpressao(self, expressao: str):
         """
         Função chamada para cada linha (expressão) que será analisada.
         A `expressão` deve ser uma string de caracteres válidos,
@@ -103,11 +103,12 @@ class AnalisadorLexico:
 
         # Prepara o estado para a nova linha
         self.expressao = expressao
-        self.linha_atual = numero_linha
+        self.linha_atual += 1
         self.coluna_atual = 0
         self.tokens_linha_atual = []
 
         self.estadoInicial()
+        return self.tokens_linha_atual
 
     def estadoInicial(self, token: Token | None = None):
         # Se receber um token, adiciona à lista de tokens
@@ -147,6 +148,7 @@ class AnalisadorLexico:
         elif atual.isalpha() and atual.isupper():
             self.estadoComandoMemoria(token)
         else:
+            token.valor = atual  # Adiciona o caractere onde o erro ocorreu
             self.estadoErro(token)
 
     def estadoNumero(self, token: Token):
@@ -298,23 +300,3 @@ class AnalisadorLexico:
             self.estadoFinal(token)
         else:
             self.estadoErro(token)
-<<<<<<< HEAD
-
-
-if __name__ == "__main__":
-    analisador = AnalisadorLexico()
-
-    analisador.parseExpressao(
-        "1 11 1.1 * // / + - % ^ RES MEM TESTE GAMER ( ) () (11 1 +) *\n",
-        1,
-    )
-    analisador.parseExpressao(
-        "LEGAL - + * 1.1 - (1 MEM -) + (RES) R RE RER (NOME) RA (REA) RESA RES 1 +\n",
-        2,
-    )
-    for i in analisador.matriz_tokens:
-        print(f"\n ---nova linha---\n")
-        for j in i:
-            print(j)
-=======
->>>>>>> main
