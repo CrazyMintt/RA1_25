@@ -1,3 +1,4 @@
 - [ ] Pode incrementar o número de coluna e linha e na Maquina de Estado? Ou não pode nenhum tipo de operação?
 - [ ] A Maquina de Estado esta conceitualmente certa?
 - [ ] Posso usar um lista de tokens da classe?
+- [ ] Colocar o nome de todos os integrantes em todos os arquivos?
