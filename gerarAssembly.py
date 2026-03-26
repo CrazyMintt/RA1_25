@@ -99,8 +99,6 @@ class geradorAssembly():
                     self._salvar_valor_a_reg(token_atribuir, reg_var)
                     self.memoria[token.valor] = reg_var
                     
-                    # IMPORTANTE: Devolvemos o token para a pilha para que 
-                    # ele possa ser exibido no display ou usado em outras ops
                     pilha.append(token_atribuir) 
                 except IndexError:
                     pilha.append(token)
@@ -108,7 +106,7 @@ class geradorAssembly():
             elif token.tipo == TipoToken.KEYWORD and token.valor == "RES":
                 if not pilha: continue
                 n_tk = pilha.pop()
-                # MUDANÇA: Agora usamos o valor ABSOLUTO (0 RES = linha 0)
+                # usamos o valor ABSOLUTO (0 RES = linha 0)
                 linha_alvo = int(n_tk.valor)
                 nome_res = f"res_linha_{linha_alvo}"
                 pilha.append(Token(TipoToken.MEMORIA, nome_res, self.current_line, token.coluna))
@@ -170,7 +168,6 @@ class geradorAssembly():
                     if token_res.valor.startswith("tmp_"):
                         self.liberar_reg(reg_res)
                         del self.memoria[token_res.valor]
-
         return self._formatar_output_final(), []
 
     def _formatar_output_final(self) -> str:
@@ -188,8 +185,6 @@ class geradorAssembly():
         assembly  = ".section .data\n"
         assembly += "\n".join(list(dict.fromkeys(self.data_section)))
         
-        
-
         assembly += "\n\n.section .text\n.align 2\n.global _start\n_start:\n"
         assembly += "\n".join(self.codigo_assembly)
         
@@ -299,8 +294,7 @@ class geradorAssembly():
     def _criar_pow_loop(self, kw, reg_a, reg_b, reg_resultado, eh_float):
         before_op = []
         reg_contador = reg_b
-
-        # CORREÇÃO: Se reg_b (expoente) for um registrador D, precisamos
+        
         # convertê-lo para um registrador R para usar CMP e SUB.
         if reg_b.startswith("D"):
             reg_tmp_int = self.alocar_reg(eh_float=False)
@@ -382,9 +376,7 @@ class geradorAssembly():
 
         return Token(TipoToken.MEMORIA, tmp_key, self.current_line, operacao.coluna)
 
-
 #Estou chamando o que esta daqui pra trás de bilblioteca, são todos os códigos que geram as funções de display, divisão, etc. O que esta antes disso é o código de geração do assembly em si, que é o foco do trabalho. Assim fica mais organizado e fácil de entender a parte principal do gerador.
-
 
     def gerar_data_section(self):
         mapa_7seg = {
