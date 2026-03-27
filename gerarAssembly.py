@@ -98,24 +98,17 @@ class geradorAssembly():
         pilha = []
         for token in tokens_line:
             if token.tipo == TipoToken.MEMORIA and not token.valor.startswith("tmp_"):
-                # FIX 4: não aloca registrador antes de saber se é atribuição ou leitura.
-                # Antes, sempre alocava um D mesmo quando o token era só leitura,
-                # desperdiçando registradores.
                 try:
                     token_atribuir = pilha.pop()
-                    # só agora sabemos que é atribuição — pega ou aloca o registrador
                     reg_var = self.memoria.get(token.valor)
                     # garante que sempre será D, já que _salvar_valor_a_reg usa VFP
                     if not reg_var or not reg_var.startswith("D"):
                         reg_var = self.alocar_reg(True)
-
                     self._salvar_valor_a_reg(token_atribuir, reg_var)
                     self.memoria[token.valor] = reg_var
                 except IndexError:
-                    # FIX 5: captura apenas IndexError (pilha vazia = é leitura)
-                    # O bare "except" anterior engolia qualquer erro, tornando
-                    # bugs silenciosos e impossíveis de depurar.
-                    pilha.append(token)
+                    pass
+                pilha.append(token)
             elif token.tipo == TipoToken.KEYWORD:
                 if token.valor == "RES":
                     n_tk = pilha.pop()
@@ -131,20 +124,34 @@ class geradorAssembly():
             elif token.tipo not in (TipoToken.PARENTESE_DIR, TipoToken.PARENTESE_ESQ):
                 pilha.append(token)
         return pilha
-    def resolver_RES(self,token_matrix:list[list[Token]]):
-        for i,tokens_line in enumerate(token_matrix):
-            valor_anterior = None
-            for token in tokens_line:
-                if valor_anterior == None:
-                    valor_anterior = token
+    def resolver_RES(self, token_matrix: list[list[Token]]):
+        for i, tokens_line in enumerate(token_matrix):
+            for j, token in enumerate(tokens_line):
                 if token.tipo == TipoToken.KEYWORD and token.valor == "RES":
-                    linha_para_salvar = i - int(valor_anterior.valor)
-                    if not self.memoria.get(f"res_linha_{linha_para_salvar}",None):
+                    
+                    # procura o NUMERO_INTEIRO mais próximo antes do RES,
+                    # pulando parênteses ou qualquer outro token não-numérico
+                    n = None
+                    for k in range(j - 1, -1, -1):
+                        if tokens_line[k].tipo == TipoToken.NUMERO_INTEIRO:
+                            n = int(tokens_line[k].valor)
+                            break
+                    
+                    if n is None:
+                        raise ValueError(f"RES na linha {i} sem número antes dele")
+                    
+                    linha_para_salvar = i - n
+                    if linha_para_salvar < 0:
+                        raise ValueError(f"RES({n}) na linha {i} aponta para linha negativa")
+                    
+                    nome_variavel = f"res_linha_{linha_para_salvar}"
+                    if not self.memoria.get(nome_variavel):
                         eh_float = self.line_is_float(token_matrix[linha_para_salvar])
                         reg_res = self.alocar_reg(eh_float)
-                        nome_variavel = f"res_linha_{linha_para_salvar}"
                         self.memoria[nome_variavel] = reg_res
-                        token_matrix[linha_para_salvar].append(Token(TipoToken.MEMORIA,nome_variavel,linha_para_salvar,0))
+                        token_matrix[linha_para_salvar].append(
+                            Token(TipoToken.MEMORIA, nome_variavel, linha_para_salvar, 0)
+                        )
         return token_matrix
 
 
