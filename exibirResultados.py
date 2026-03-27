@@ -10,6 +10,7 @@ GRUPO: RA1-25
 def exibirResultados(resultados, linha):
     for i, resultado in enumerate(resultados, start=1):
         try:
-            print(f"Linha {linha}: {resultado:.1f}")
+            resultado_truncado = int(resultado * 10) / 10
+            print(f"Linha {linha}: {resultado_truncado:.1f}")
         except:
             print(f"Linha {linha}: {resultado}")
