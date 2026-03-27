@@ -1,4 +1,4 @@
-'''
+"""
 Equipe:
 Bruno Betiatto Alves @Brunobetiatto
 Bruno Himovski Opuszka Machado Dutra @CrazyMintt
@@ -6,10 +6,10 @@ Leonardo Saito @Leosaito632
 Vitor Nicoletti @vitorNicoletti
 
 GRUPO: RA1-25
-'''
+"""
+
 from enum import Enum
 
-SEPARADOR_EXPRESSAO = "\n"
 SEPARADOR_TOKEN = " "
 SEPARADOR_DECIMAL = "."
 NUMEROS_VALIDOS = [str(i) for i in range(0, 10)]
@@ -90,19 +90,17 @@ class AnalisadorLexico:
         self.coluna_atual += 1
 
     def get_atual(self) -> str:
-        """Retorna o Caractere atual"""
+        """Retorna o Caractere atual ou sting vazia '' caso esteja no fim da linha."""
         if self.coluna_atual < len(self.expressao):
             return self.expressao[self.coluna_atual]
         else:
-            raise ErroExpressaoInvalida(
-                "Caractere sinalizando fim da expressão não encontrado. (\\n)"
-            )
+            return ""
 
     def parseExpressao(self, expressao: str):
         """
         Função chamada para cada linha (expressão) que será analisada.
         A `expressão` deve ser uma string de caracteres válidos,
-        com quebra de linha `\\n` no final para delimitar o fim da expressão
+        sem quebra de linha `\\n` no final.
         """
 
         # Prepara o estado para a nova linha
@@ -227,7 +225,7 @@ class AnalisadorLexico:
         if self.get_atual() == SEPARADOR_TOKEN:
             self.avancar()
             self.estadoInicial(token)
-        elif self.get_atual() == SEPARADOR_EXPRESSAO:
+        elif not self.get_atual():
             self.estadoFinal(token)
         else:
             # Qualquer coisa pode vir depois de um PARENTESE_ESQ
@@ -300,7 +298,7 @@ class AnalisadorLexico:
         """Função auxilar para transições de estado presente em quase todos os estados. Não é um estado."""
         if self.is_fim_token():
             self.estadoInicial(token)
-        elif self.get_atual() == SEPARADOR_EXPRESSAO:
+        elif not self.get_atual():
             self.estadoFinal(token)
         else:
             self.estadoErro(token)
