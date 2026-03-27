@@ -1,5 +1,9 @@
-from gerarAssembly import geradorAssembly
-from parseExpressao import Token,TipoToken
+import sys
+import os
+sys.path.append(os.path.abspath(".."))
+
+from ..gerarAssembly import geradorAssembly
+from ..parseExpressao import Token,TipoToken
 
 # ── Testes ───────────────────────────────────────────────────────────────────
 def rodar_teste(nome, matriz_tokens):
