@@ -51,9 +51,19 @@ class geradorAssembly():
                 resultado = []
                 for t in pilha:
                     if t.tipo == TipoToken.MEMORIA and not t.valor.startswith("tmp_"):
+                        original_reg = self.memoria.get(t.valor)
                         tmp_key = f"tmp_{self.tmp_counter}"
                         self.tmp_counter += 1
-                        self.memoria[tmp_key] = self.memoria.get(t.valor)
+                        if original_reg is not None:
+                            eh_float = original_reg.startswith("D")
+                            novo_reg = self.alocar_reg(eh_float)
+                            if eh_float:
+                                self.codigo_assembly.append(f"VMOV.F64 {novo_reg}, {original_reg}")
+                            else:
+                                self.codigo_assembly.append(f"MOV {novo_reg}, {original_reg}")
+                            self.memoria[tmp_key] = novo_reg
+                        else:
+                            self.memoria[tmp_key] = None
                         resultado.append(Token(TipoToken.MEMORIA, tmp_key, t.linha, t.coluna))
                     else:
                         resultado.append(t)
@@ -111,7 +121,6 @@ class geradorAssembly():
                 if token.valor == "RES":
                     n_tk = pilha.pop()
                     linha_res = self.current_line - int(n_tk.valor)
-                    reg_res = self.memoria.get(f"res_linha_{linha_res}")
                     pilha.append(Token(TipoToken.MEMORIA, f"res_linha_{linha_res}", self.current_line))
             elif token.tipo == TipoToken.OPERADOR:
                 b = pilha.pop()
@@ -158,68 +167,111 @@ class geradorAssembly():
             return
         reg = self.memoria.get(token_resultado.valor)
         if reg is None:
+            self.codigo_assembly.append("MOV R0, #0")
+            self.codigo_assembly.append("BL __jtag_print_1dec")
             return
         if reg.startswith("D"):
-            self.codigo_assembly.append(f"VCVT.S32.F64 s0, {reg}")
+            label_ten = self._criar_label_float("10.00")
+            self.codigo_assembly.append(f"LDR R12, ={label_ten}")
+            self.codigo_assembly.append(f"VLDR D0, [R12]")
+            self.codigo_assembly.append(f"VMUL.F64 D0, {reg}, D0")
+            self.codigo_assembly.append(f"VCVT.S32.F64 s0, D0")
             self.codigo_assembly.append(f"VMOV R0, s0")
         else:
-            self.codigo_assembly.append(f"MOV R0, {reg}")
-        self.codigo_assembly.append("BL __jtag_print_int")
+            self.codigo_assembly.append(f"MOV R12, {reg}")
+            self.codigo_assembly.append(f"MOV R0, #10")
+            self.codigo_assembly.append(f"MUL R0, R12, R0")
+        self.codigo_assembly.append("BL __jtag_print_1dec")
+
+    def _liberar_tmps(self):
+        regs_protegidos = {
+            reg for nome, reg in self.memoria.items()
+            if not nome.startswith("tmp_") and reg is not None
+        }
+        for k in [k for k in self.memoria if k.startswith("tmp_")]:
+            reg = self.memoria.pop(k)
+            if reg and reg not in regs_protegidos:
+                self.liberar_reg(reg)
 
     def _subrotina_jtag(self) -> str:
         return """\
-    __jtag_print_int:
-        PUSH {R1, R2, R3, R4, R5, R6, LR}
-        LDR  R1, =0xFF201000
-        CMP  R0, #0
-        BGE  __pji_pos
-        MOV  R6, #0x2D
-        STR  R6, [R1]
-        RSB  R0, R0, #0
-    __pji_pos:
-        CMP  R0, #0
-        BNE  __pji_loop
-        MOV  R6, #0x30
-        STR  R6, [R1]
-        B    __pji_nl
-    __pji_loop:
-        @ divide R0 por 10 sem UDIV (subtração sucessiva)
-        MOV  R3, #0
-        MOV  R2, R0
-    __pji_div:
-        CMP  R2, #10
-        BLT  __pji_div_end
-        SUB  R2, R2, #10
-        ADD  R3, R3, #1
-        B    __pji_div
-    __pji_div_end:
-        @ R3 = quociente, R2 = resto
-        ADD  R5, R2, #0x30
-        PUSH {R5}
-        ADD  R4, R4, #1
-        MOV  R0, R3
-        CMP  R0, #0
-        BNE  __pji_loop
-        MOV  R3, R4
-    __pji_print:
-        POP  {R5}
-        STR  R5, [R1]
-        SUBS R3, R3, #1
-        BNE  __pji_print
-    __pji_nl:
-        MOV  R6, #0x0A
-        STR  R6, [R1]
-        POP  {R1, R2, R3, R4, R5, R6, LR}
-        BX   LR
-    """
+__jtag_putchar:
+__jpch_wait:
+    LDR  R12, [R1, #4]
+    LSRS R12, R12, #16
+    BEQ  __jpch_wait
+    STR  R6, [R1]
+    BX   LR
+__jtag_print_1dec:
+    PUSH {R1, R2, R3, R4, R5, R6, LR}
+    LDR  R1, =0xFF201000
+    CMP  R0, #0
+    BGE  __jpd1_pos
+    MOV  R6, #0x2D
+    BL   __jtag_putchar
+    RSB  R0, R0, #0
+__jpd1_pos:
+    MOV  R4, #0
+    MOV  R3, #0
+    MOV  R2, R0
+__jpd1_div10:
+    CMP  R2, #10
+    BLT  __jpd1_div10_end
+    SUB  R2, R2, #10
+    ADD  R3, R3, #1
+    B    __jpd1_div10
+__jpd1_div10_end:
+    PUSH {R2}
+    MOV  R0, R3
+    CMP  R0, #0
+    BNE  __jpd1_iloop
+    MOV  R6, #0x30
+    BL   __jtag_putchar
+    B    __jpd1_dot
+__jpd1_iloop:
+    MOV  R3, #0
+    MOV  R2, R0
+__jpd1_idiv:
+    CMP  R2, #10
+    BLT  __jpd1_idiv_end
+    SUB  R2, R2, #10
+    ADD  R3, R3, #1
+    B    __jpd1_idiv
+__jpd1_idiv_end:
+    ADD  R5, R2, #0x30
+    PUSH {R5}
+    ADD  R4, R4, #1
+    MOV  R0, R3
+    CMP  R0, #0
+    BNE  __jpd1_iloop
+    MOV  R3, R4
+__jpd1_iprint:
+    POP  {R5}
+    MOV  R6, R5
+    BL   __jtag_putchar
+    SUBS R3, R3, #1
+    BNE  __jpd1_iprint
+__jpd1_dot:
+    MOV  R6, #0x2E
+    BL   __jtag_putchar
+    POP  {R5}
+    ADD  R5, R5, #0x30
+    MOV  R6, R5
+    BL   __jtag_putchar
+    MOV  R6, #0x0A
+    BL   __jtag_putchar
+    POP  {R1, R2, R3, R4, R5, R6, LR}
+    BX   LR
+"""
 
     def gerarAssembly(self, token_matrix: list[list[Token]]) -> str:
         pilha = []
         token_matrix = self.resolver_RES(token_matrix)
         for i, tokens_line in enumerate(token_matrix):
             tokens_line = self.resolver_parenteses(tokens_line)
-            pilha = self._gerar_linha_assembly(tokens_line)  # captura pilha
-            self._emitir_print_linha(pilha)                  # print JTAG
+            pilha = self._gerar_linha_assembly(tokens_line)
+            self._emitir_print_linha(pilha)
+            self._liberar_tmps()
             self.current_line += 1
         assembly  = ".section .data\n"
         assembly += "\n".join(self.data_section)
@@ -227,7 +279,7 @@ class geradorAssembly():
         assembly += "\n".join(self.codigo_assembly)
         assembly += "\nfim:\n"
         assembly += "B fim\n"
-        assembly += self._subrotina_jtag()                   # sub-rotina no final
+        assembly += self._subrotina_jtag()
         return assembly
 
     def get_assembly_keyword(self, operacao: Token, eh_float: bool) -> str:
@@ -320,6 +372,15 @@ class geradorAssembly():
 
     def _criar_pow_loop(self, kw, reg_a, reg_b, reg_resultado, eh_float):
         before_op = []
+
+        # CMP e SUB com imediato exigem registrador inteiro; converte D→R se necessário
+        if reg_b.startswith("D"):
+            reg_counter = self.alocar_reg(eh_float=False)
+            before_op.append(f"VCVT.S32.F64 s0, {reg_b}")
+            before_op.append(f"VMOV {reg_counter}, s0")
+        else:
+            reg_counter = reg_b
+
         if eh_float:
             label_um = self._criar_label_float("1.00")
             before_op.append(f"LDR R12, ={label_um}")
@@ -331,19 +392,31 @@ class geradorAssembly():
         lbl_loop = f"pow_loop_{loop_id}"
         lbl_end  = f"pow_end_{loop_id}"
         before_op.append(f"{lbl_loop}:")
-        before_op.append(f"CMP {reg_b}, #0")
+        before_op.append(f"CMP {reg_counter}, #0")
         before_op.append(f"BEQ {lbl_end}")
         before_op.append(f"{kw} {reg_resultado}, {reg_resultado}, {reg_a}")
-        before_op.append(f"SUB {reg_b}, {reg_b}, #1")
+        before_op.append(f"SUB {reg_counter}, {reg_counter}, #1")
         before_op.append(f"B {lbl_loop}")
         before_op.append(f"{lbl_end}:")
+
+        if reg_counter != reg_b:
+            self.liberar_reg(reg_counter)
+
         return before_op
 
     def criar_op_line_assembly(self, a: Token, b: Token, operacao: Token) -> Token:
-        header, reg_a, reg_b, eh_float = self.create_op_headers(a, b, operacao)
-        kw = self.get_assembly_keyword(operacao, eh_float)
+        # FIX ^: aloca reg_resultado ANTES de alocar reg_a e reg_b via
+        # create_op_headers, para garantir que o acumulador do loop não
+        # colide com o registrador do expoente.
+        if operacao.valor == "^":
+            eh_float = self._is_float(a) or self._is_float(b)
+            reg_resultado = self.alocar_reg(eh_float=eh_float)
+            header, reg_a, reg_b, eh_float = self.create_op_headers(a, b, operacao)
+        else:
+            header, reg_a, reg_b, eh_float = self.create_op_headers(a, b, operacao)
+            reg_resultado = self.alocar_reg(eh_float=eh_float)
 
-        reg_resultado = self.alocar_reg(eh_float=eh_float)
+        kw = self.get_assembly_keyword(operacao, eh_float)
 
         before_op = []
         if operacao.valor == "^":
@@ -358,6 +431,9 @@ class geradorAssembly():
             after_op.extend(linhas_assembly)
 
         if operacao.valor == "%":
+            # FIX %: converte operandos para int e libera TODOS os R temporários
+            # antes de alocar reg_saida, evitando colisão entre quociente,
+            # numerador, denominador e resultado final.
             linhas_assembly_a, reg_a = self.convert_64b_to_int(reg_a)
             after_op.extend(linhas_assembly_a)
             linhas_assembly_b, reg_b = self.convert_64b_to_int(reg_b)
@@ -370,8 +446,12 @@ class geradorAssembly():
 
         if a.tipo != TipoToken.MEMORIA or a.valor.startswith("tmp_"):
             self.liberar_reg(reg_a)
+            if a.tipo == TipoToken.MEMORIA:
+                self.memoria.pop(a.valor, None)
         if b.tipo != TipoToken.MEMORIA or b.valor.startswith("tmp_"):
             self.liberar_reg(reg_b)
+            if b.tipo == TipoToken.MEMORIA:
+                self.memoria.pop(b.valor, None)
 
         tmp_key = f"tmp_{self.tmp_counter}"
         self.tmp_counter += 1
