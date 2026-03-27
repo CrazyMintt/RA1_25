@@ -463,7 +463,6 @@ class geradorAssembly():
         self.codigo_assembly.append("    B loop_body")
 
         self.codigo_assembly.append("\nfim_display_int:")
-        self.codigo_assembly.append("    BKPT")
         self.codigo_assembly.append(f"    POP {{{', '.join(regs_para_salvar)}}}")
         self.codigo_assembly.append("    BX LR")
 
@@ -554,7 +553,6 @@ class geradorAssembly():
         self.codigo_assembly.append("    B display_float_loop")
 
         self.codigo_assembly.append("\nfim_display_float:")
-        self.codigo_assembly.append("    BKPT")
         self.codigo_assembly.append(f"    POP {{{', '.join(regs_salvar)}}}")
         self.codigo_assembly.append("    BX LR")
 
