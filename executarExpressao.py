@@ -116,7 +116,7 @@ class InterpretadorRPN:
                         raise Exception(
                             f"Erro na linha {token.linha}: Resto da divisão por zero."
                         )
-                    stack.append(float(a - math.trunc(a / b) * b))
+                    stack.append(a % b)
 
                 elif token.valor == "^":
                     stack.append(math.pow(a, b))
