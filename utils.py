@@ -39,6 +39,7 @@ def obter_argumentos_cli():
     
     return caminho_arquivo, nome_base
 
-
-def lerArquivo(): 
-    print("função de ler arquivo")
+def ler_arquivo(path: str) -> list[str]:
+    with open(path, "r", encoding="utf-8") as file:
+        linhas = file.read().splitlines()
+    return linhas
